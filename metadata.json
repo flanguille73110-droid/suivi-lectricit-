@@ -1,0 +1,6 @@
+{
+  "name": "Suivi Élec & Budget",
+  "description": "Suivi complet de consommation électrique (Heures Pleines / Heures Creuses), gestion de budget annuel avec taxes, abonnements et hausses de tarifs, et graphiques d'économies potentielles.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
