@@ -51,7 +51,14 @@ export default function Header({
           </span>
         </div>
         <div className="text-[11px] text-slate-400 mt-2 font-medium">
-          Moyenne : <span className="text-blue-600 font-bold">{coutMensuelMoyen.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} € / mois</span>
+          <div>
+            Moyenne : <span className="text-blue-600 font-bold">{coutMensuelMoyen.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} € / mois</span>
+          </div>
+          {Math.round(nombreDeMois) === 12 && (
+            <div className="text-emerald-700 font-bold mt-1.5 bg-emerald-50 border border-emerald-100 p-1.5 rounded-lg">
+              Prélèvement à prévoir : <span className="text-emerald-600">{((totalCoutTTC) / (config.nombrePrelevements || 11)).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} € / mois</span> <span className="text-[9px] text-emerald-400 font-mono">({config.nombrePrelevements || 11} fois)</span>
+            </div>
+          )}
         </div>
       </div>
 

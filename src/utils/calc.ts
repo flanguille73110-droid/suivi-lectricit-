@@ -16,6 +16,7 @@ export const DEFAULT_TARIF_CONFIG: TarifConfig = {
   fin: '',
   heureDebutHC: '22:00',
   heureFinHC: '06:00',
+  nombrePrelevements: 11,
   taxes: {
     cta: 21.05,        // % de l'abonnement par défaut (Contribution Tarifaire d'Acheminement, ~3.20 €/mois)
     cspe: 0.0225,      // €/kWh (Accise sur l'électricité / TICFE)

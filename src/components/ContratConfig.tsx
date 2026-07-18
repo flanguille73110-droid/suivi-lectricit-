@@ -483,29 +483,54 @@ export default function ContratConfig({ config, onChangeConfig }: ContratConfigP
             </div>
           </div>
 
-          {config.type === 'BASE' ? (
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5 flex justify-between">
-                <span>Prix du kWh unique (Base) - {modeTarifEnergie}</span>
-                <span className="text-slate-400 font-mono">€ / kWh</span>
-              </label>
-              <div className="relative">
-                <DecimalInput
-                  id="input-config-tarif-base"
-                  value={
-                    modeTarifEnergie === 'TTC'
-                      ? config.prixKwhBase * (1 + config.taxes.tvaNormale / 100)
-                      : config.prixKwhBase
-                  }
-                  onChange={(val) => {
-                    const htVal = modeTarifEnergie === 'TTC'
-                      ? val / (1 + config.taxes.tvaNormale / 100)
-                      : val;
-                    handleNumericChange('prixKwhBase', htVal.toString());
-                  }}
-                  className="w-full rounded-lg border border-slate-200 bg-white pl-3 pr-12 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
-                />
-                <span className="absolute right-3 top-2.5 text-slate-400 text-xs font-mono">€/kWh</span>
+           {config.type === 'BASE' ? (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 flex justify-between">
+                  <span>Prix du kWh unique (Base) - {modeTarifEnergie}</span>
+                  <span className="text-slate-400 font-mono">€ / kWh</span>
+                </label>
+                <div className="relative">
+                  <DecimalInput
+                    id="input-config-tarif-base"
+                    value={
+                      modeTarifEnergie === 'TTC'
+                        ? config.prixKwhBase * (1 + config.taxes.tvaNormale / 100)
+                        : config.prixKwhBase
+                    }
+                    onChange={(val) => {
+                      const htVal = modeTarifEnergie === 'TTC'
+                        ? val / (1 + config.taxes.tvaNormale / 100)
+                        : val;
+                      handleNumericChange('prixKwhBase', htVal.toString());
+                    }}
+                    className="w-full rounded-lg border border-slate-200 bg-white pl-3 pr-12 py-2 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500"
+                  />
+                  <span className="absolute right-3 top-2.5 text-slate-400 text-xs font-mono">€/kWh</span>
+                </div>
+              </div>
+
+              {/* Encadré Prélèvement en */}
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                <h4 className="text-xs font-bold text-slate-600 font-mono uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Prélèvement en
+                </h4>
+                <div>
+                  <label htmlFor="input-config-prelevements-base" className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 font-mono">Nombre de mensualités par an</label>
+                  <select
+                    id="input-config-prelevements-base"
+                    value={config.nombrePrelevements || 11}
+                    onChange={(e) => onChangeConfig({ ...config, nombrePrelevements: parseInt(e.target.value) })}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 font-mono cursor-pointer"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                      <option key={m} value={m}>
+                        {m} {m === 1 ? 'mois' : 'mois'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
           ) : (
@@ -587,6 +612,29 @@ export default function ContratConfig({ config, onChangeConfig }: ContratConfigP
                       className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 font-mono"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Encadré Prélèvement en */}
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+                <h4 className="text-xs font-bold text-slate-600 font-mono uppercase tracking-wider flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                  Prélèvement en
+                </h4>
+                <div>
+                  <label htmlFor="input-config-prelevements-hphc" className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5 font-mono">Nombre de mensualités par an</label>
+                  <select
+                    id="input-config-prelevements-hphc"
+                    value={config.nombrePrelevements || 11}
+                    onChange={(e) => onChangeConfig({ ...config, nombrePrelevements: parseInt(e.target.value) })}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 font-mono cursor-pointer"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                      <option key={m} value={m}>
+                        {m} {m === 1 ? 'mois' : 'mois'}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </>

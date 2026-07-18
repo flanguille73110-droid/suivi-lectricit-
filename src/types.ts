@@ -42,6 +42,7 @@ export interface TarifConfig {
   fin?: string;   // YYYY-MM-DD
   heureDebutHC?: string; // HH:MM
   heureFinHC?: string;   // HH:MM
+  nombrePrelevements?: number; // Nombre de prélèvements par an (1 à 12)
 }
 
 export interface Releve {
