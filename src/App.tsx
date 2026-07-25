@@ -117,6 +117,18 @@ export default function App() {
     }
   }, [isSettingsModalOpen, selectorSettings]);
 
+  const dernierReleveDate = React.useMemo(() => {
+    if (!releves || releves.length === 0) return null;
+    const sorted = [...releves].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const lastDate = sorted[sorted.length - 1].date;
+    if (!lastDate) return null;
+    const parts = lastDate.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return lastDate;
+  }, [releves]);
+
   // Synchroniser les paramètres avec localStorage
   useEffect(() => {
     localStorage.setItem('elec_selector_settings', JSON.stringify(selectorSettings));
@@ -459,6 +471,14 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-3">
+            <div className="text-[11px] text-slate-500 font-medium bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="text-slate-600 font-semibold">Dernier relevé enregistré le :</span>
+              <span className="font-mono font-bold text-slate-800">
+                {dernierReleveDate || 'Aucun'}
+              </span>
+            </div>
+
             <button
               id="btn-sauvegarder"
               onClick={() => exportFullBackupExcel(releves, config, triggerToast)}
