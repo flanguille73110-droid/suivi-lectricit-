@@ -18,7 +18,8 @@ import {
   Flame, 
   ShieldCheck,
   Zap,
-  Save
+  Save,
+  Download
 } from 'lucide-react';
 
 import { Releve, TarifConfig, AnalyseMois, ComparaisonOption } from './types';
@@ -29,6 +30,7 @@ import {
   comparerOptionsTarifaires,
   calculerStatsPourIntervalle
 } from './utils/calc';
+import { exportFullBackupExcel } from './utils/exportExcel';
 
 import Header from './components/Header';
 import RelevesTable from './components/RelevesTable';
@@ -458,11 +460,13 @@ export default function App() {
 
           <div className="flex items-center space-x-3">
             <button
-              id="btn-reset-data"
-              onClick={handleResetDefaults}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2 cursor-pointer border border-slate-200"
+              id="btn-sauvegarder"
+              onClick={() => exportFullBackupExcel(releves, config, triggerToast)}
+              className="px-4 py-2 bg-gradient-to-r from-pink-500 to-blue-600 hover:from-pink-600 hover:to-blue-700 active:from-pink-700 active:to-blue-800 text-white font-semibold rounded-lg text-xs transition-all shadow-xs hover:shadow-md flex items-center gap-2 cursor-pointer border border-pink-400/20"
+              title="Télécharger une sauvegarde Excel complète"
             >
-              Données Démo
+              <Download className="w-3.5 h-3.5" />
+              <span>Sauvegarder</span>
             </button>
             <div className="h-4 w-px bg-slate-200"></div>
             <span className="text-[11px] font-mono text-slate-400 bg-slate-100 px-2 py-1 rounded">

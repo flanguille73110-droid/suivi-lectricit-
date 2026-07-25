@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { Releve, TarifConfig, TarifPeriode } from '../types';
+import { exportFullBackupExcel } from '../utils/exportExcel';
 
 interface SauvegardeExportProps {
   releves: Releve[];
@@ -79,132 +80,7 @@ export default function SauvegardeExport({ releves, config, onImportData, trigge
   };
 
   const handleExportExcel = () => {
-    try {
-      const wb = XLSX.utils.book_new();
-
-      // --- ONGLET 1 : CONFIGURATION CONTRAT ---
-      const configRows: any[][] = [
-        ["CONFIGURATION DU CONTRAT & TARIFS"],
-        [],
-        ["Paramètre", "Valeur", "Unité", "Description"],
-        ["Type de Tarif", config.type, "", "Option tarifaire active (BASE ou HP_HC)"],
-        ["Abonnement Mensuel", config.abonnementMensuel, "€/mois", "Montant de l'abonnement HT actuel"],
-        ["Date Début", config.debut || "", "YYYY-MM-DD", "Début de la période actuelle"],
-        ["Date Fin", config.fin || "", "YYYY-MM-DD", "Fin de la période actuelle (laisser vide si en cours)"],
-        ["Prix kWh Base", config.prixKwhBase, "€/kWh", "Prix HT du kWh Base"],
-        ["Prix kWh HP", config.prixKwhHP, "€/kWh", "Prix HT du kWh Heures Pleines"],
-        ["Prix kWh HC", config.prixKwhHC, "€/kWh", "Prix HT du kWh Heures Creuses"],
-        ["CTA (Acheminement)", config.taxes.cta, "", "Contribution Tarifaire d'Acheminement actuelle"],
-        ["Type de CTA", config.taxes.ctaType || "pourcentage", "", "Mode de calcul de la CTA (mensuel, annuel, pourcentage)"],
-        ["CSPE (Accise)", config.taxes.cspe, "€/kWh", "Accise sur l'électricité / TICFE actuelle"],
-        ["Type de CSPE", config.taxes.cspeType || "par_kwh", "", "Mode de calcul de la CSPE (par_kwh, annuel, pourcentage)"],
-        ["TVA Réduite", config.taxes.tvaReduite, "%", "TVA sur l'abonnement et la CTA"],
-        ["TVA Normale", config.taxes.tvaNormale, "%", "TVA sur la consommation et la CSPE"],
-        ["Hausse Prévue", config.haussePrevue, "%", "Simulation de hausse pour le budget prévisionnel"],
-        [],
-        ["HISTORIQUE DES PÉRIODES DE TARIFS & ABONNEMENTS"],
-        [],
-        [
-          "Nom de la Période", 
-          "Date Début", 
-          "Date Fin", 
-          "Prix kWh Base", 
-          "Prix kWh HP", 
-          "Prix kWh HC", 
-          "Abonnement Mensuel", 
-          "CTA", 
-          "Type CTA", 
-          "CSPE", 
-          "Type CSPE"
-        ]
-      ];
-
-      // Ajouter l'historique des périodes
-      if (config.periodes && config.periodes.length > 0) {
-        config.periodes.forEach(p => {
-          configRows.push([
-            p.nom,
-            p.debut,
-            p.fin || "",
-            p.prixKwhBase,
-            p.prixKwhHP,
-            p.prixKwhHC,
-            p.abonnementMensuel,
-            p.cta !== undefined ? p.cta : "",
-            p.ctaType || "",
-            p.cspe !== undefined ? p.cspe : "",
-            p.cspeType || ""
-          ]);
-        });
-      }
-
-      const wsConfig = XLSX.utils.aoa_to_sheet(configRows);
-      
-      // Ajustement cosmétique de la largeur des colonnes
-      wsConfig['!cols'] = [
-        { wch: 30 }, // Paramètre / Nom de la Période
-        { wch: 15 }, // Valeur / Date Début
-        { wch: 15 }, // Unité / Date Fin
-        { wch: 15 }, // Description / Prix kWh Base
-        { wch: 15 }, // Prix HP
-        { wch: 15 }, // Prix HC
-        { wch: 20 }, // Abonnement
-        { wch: 10 }, // CTA
-        { wch: 12 }, // Type CTA
-        { wch: 10 }, // CSPE
-        { wch: 12 }  // Type CSPE
-      ];
-
-      XLSX.utils.book_append_sheet(wb, wsConfig, "Configuration Contrat");
-
-      // --- ONGLET 2 : SAISIE DES RELEVÉS ---
-      // Colonnes dans l'ordre EXACT demandé : date / Conso HC / HC index / Conso HP / HP Index / Commentaire
-      const releveRows: any[][] = [
-        ["Saisie des relevés : historique des relevés du compteur"],
-        [],
-        ["date", "Conso HC", "HC index", "Conso HP", "HP Index", "Commentaire"]
-      ];
-
-      // Trier par ordre chronologique pour calculer la consommation
-      const chronologiques = [...releves].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-      chronologiques.forEach((releve, index) => {
-        const precedentChrono = index > 0 ? chronologiques[index - 1] : undefined;
-        
-        const evoHP = precedentChrono !== undefined ? Math.max(0, releve.indexHP - precedentChrono.indexHP) : 0;
-        const evoHC = config.type === 'HP_HC' && precedentChrono !== undefined ? Math.max(0, releve.indexHC - precedentChrono.indexHC) : 0;
-        
-        releveRows.push([
-          releve.date,
-          config.type === 'HP_HC' ? evoHC : 0,
-          releve.indexHC,
-          evoHP,
-          releve.indexHP,
-          releve.commentaire || ""
-        ]);
-      });
-
-      const wsReleves = XLSX.utils.aoa_to_sheet(releveRows);
-      
-      // Ajustement des largeurs
-      wsReleves['!cols'] = [
-        { wch: 15 }, // date
-        { wch: 15 }, // Conso HC
-        { wch: 15 }, // HC index
-        { wch: 15 }, // Conso HP
-        { wch: 15 }, // HP Index
-        { wch: 30 }  // Commentaire
-      ];
-
-      XLSX.utils.book_append_sheet(wb, wsReleves, "Saisie des relevés");
-
-      // Générer le fichier
-      XLSX.writeFile(wb, "VoltTrack_Sauvegarde_Export.xlsx");
-      triggerToast('Exportation Excel réussie !');
-    } catch (err) {
-      console.error(err);
-      triggerToast("Erreur lors de l'exportation.");
-    }
+    exportFullBackupExcel(releves, config, triggerToast);
   };
 
   const handleImportExcel = (file: File) => {
