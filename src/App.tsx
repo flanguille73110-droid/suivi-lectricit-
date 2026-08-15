@@ -82,25 +82,49 @@ export default function App() {
 
   // Paramètres personnalisés des sélecteurs de période
   const [selectorSettings, setSelectorSettings] = useState(() => {
+    const currentYear = new Date().getFullYear();
     const saved = localStorage.getItem('elec_selector_settings');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        return {
+          annuelComplet: {
+            startYear: parsed.annuelComplet?.startYear ?? currentYear - 1,
+            startMonth: parsed.annuelComplet?.startMonth ?? 8,
+            startDay: parsed.annuelComplet?.startDay ?? 1,
+            endYear: parsed.annuelComplet?.endYear ?? currentYear,
+            endMonth: parsed.annuelComplet?.endMonth ?? 7,
+            endDay: parsed.annuelComplet?.endDay ?? 31,
+          },
+          annuelConso: {
+            startYear: parsed.annuelConso?.startYear ?? currentYear - 1,
+            startMonth: parsed.annuelConso?.startMonth ?? 8,
+            startDay: parsed.annuelConso?.startDay ?? 1,
+            useTodayAsEnd: parsed.annuelConso?.useTodayAsEnd ?? true,
+            endYear: parsed.annuelConso?.endYear ?? currentYear,
+            endMonth: parsed.annuelConso?.endMonth ?? 12,
+            endDay: parsed.annuelConso?.endDay ?? 31,
+          }
+        };
       } catch (e) {
         // ignore
       }
     }
     return {
       annuelComplet: {
+        startYear: currentYear - 1,
         startMonth: 8, // Août
         startDay: 1,
+        endYear: currentYear,
         endMonth: 7,  // Juillet
         endDay: 31,
       },
       annuelConso: {
+        startYear: currentYear - 1,
         startMonth: 8, // Août
         startDay: 1,
         useTodayAsEnd: true,
+        endYear: currentYear,
         endMonth: 12,
         endDay: 31,
       }
@@ -141,17 +165,22 @@ export default function App() {
   };
 
   const handleResetSelectorSettings = () => {
+    const currentYear = new Date().getFullYear();
     const defaults = {
       annuelComplet: {
+        startYear: currentYear - 1,
         startMonth: 8,
         startDay: 1,
+        endYear: currentYear,
         endMonth: 7,
         endDay: 31,
       },
       annuelConso: {
+        startYear: currentYear - 1,
         startMonth: 8,
         startDay: 1,
         useTodayAsEnd: true,
+        endYear: currentYear,
         endMonth: 12,
         endDay: 31,
       }
@@ -235,12 +264,15 @@ export default function App() {
     const sMonth = selectorSettings.annuelConso.startMonth;
     const sDay = selectorSettings.annuelConso.startDay;
     
-    // Date de début dans l'année en cours
-    const startDateThisYear = new Date(currentYear, sMonth - 1, sDay);
+    let startYear = (selectorSettings.annuelConso.startYear !== undefined && !isNaN(Number(selectorSettings.annuelConso.startYear)))
+      ? Number(selectorSettings.annuelConso.startYear)
+      : currentYear;
     
-    let startYear = currentYear;
-    if (today < startDateThisYear) {
-      startYear = currentYear - 1;
+    if (selectorSettings.annuelConso.startYear === undefined || isNaN(Number(selectorSettings.annuelConso.startYear))) {
+      const startDateThisYear = new Date(currentYear, sMonth - 1, sDay);
+      if (today < startDateThisYear) {
+        startYear = currentYear - 1;
+      }
     }
     
     const startStr = `${startYear}-${String(sMonth).padStart(2, '0')}-${String(sDay).padStart(2, '0')}`;
@@ -251,9 +283,14 @@ export default function App() {
     } else {
       const eMonth = selectorSettings.annuelConso.endMonth;
       const eDay = selectorSettings.annuelConso.endDay;
-      let endYear = startYear;
-      if (eMonth < sMonth || (eMonth === sMonth && eDay < sDay)) {
-        endYear = startYear + 1;
+      let endYear = (selectorSettings.annuelConso.endYear !== undefined && !isNaN(Number(selectorSettings.annuelConso.endYear)))
+        ? Number(selectorSettings.annuelConso.endYear)
+        : startYear;
+      
+      if (selectorSettings.annuelConso.endYear === undefined || isNaN(Number(selectorSettings.annuelConso.endYear))) {
+        if (eMonth < sMonth || (eMonth === sMonth && eDay < sDay)) {
+          endYear = startYear + 1;
+        }
       }
       todayStr = `${endYear}-${String(eMonth).padStart(2, '0')}-${String(eDay).padStart(2, '0')}`;
     }
@@ -266,7 +303,11 @@ export default function App() {
   // Vérifier si aujourd'hui est le jour exact de début de la période
   const checkIsTodayStart = () => {
     const today = new Date();
-    return today.getMonth() === (selectorSettings.annuelConso.startMonth - 1) && today.getDate() === selectorSettings.annuelConso.startDay;
+    const isSameDayMonth = today.getMonth() === (selectorSettings.annuelConso.startMonth - 1) && today.getDate() === selectorSettings.annuelConso.startDay;
+    if (selectorSettings.annuelConso.startYear) {
+      return isSameDayMonth && today.getFullYear() === Number(selectorSettings.annuelConso.startYear);
+    }
+    return isSameDayMonth;
   };
   const isTodayStart = checkIsTodayStart();
 
@@ -284,17 +325,25 @@ export default function App() {
     const eMonth = selectorSettings.annuelComplet.endMonth;
     const eDay = selectorSettings.annuelComplet.endDay;
     
-    // Date de début dans l'année en cours
-    const startDateThisYear = new Date(currentYear, sMonth - 1, sDay);
+    let startYear = (selectorSettings.annuelComplet.startYear !== undefined && !isNaN(Number(selectorSettings.annuelComplet.startYear)))
+      ? Number(selectorSettings.annuelComplet.startYear)
+      : currentYear;
     
-    let startYear = currentYear;
-    if (today < startDateThisYear) {
-      startYear = currentYear - 1;
+    if (selectorSettings.annuelComplet.startYear === undefined || isNaN(Number(selectorSettings.annuelComplet.startYear))) {
+      const startDateThisYear = new Date(currentYear, sMonth - 1, sDay);
+      if (today < startDateThisYear) {
+        startYear = currentYear - 1;
+      }
     }
     
-    let endYear = startYear;
-    if (eMonth < sMonth || (eMonth === sMonth && eDay < sDay)) {
-      endYear = startYear + 1;
+    let endYear = (selectorSettings.annuelComplet.endYear !== undefined && !isNaN(Number(selectorSettings.annuelComplet.endYear)))
+      ? Number(selectorSettings.annuelComplet.endYear)
+      : startYear;
+    
+    if (selectorSettings.annuelComplet.endYear === undefined || isNaN(Number(selectorSettings.annuelComplet.endYear))) {
+      if (eMonth < sMonth || (eMonth === sMonth && eDay < sDay)) {
+        endYear = startYear + 1;
+      }
     }
     
     const startStr = `${startYear}-${String(sMonth).padStart(2, '0')}-${String(sDay).padStart(2, '0')}`;
@@ -697,7 +746,7 @@ export default function App() {
               initial={{ scale: 0.95, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 10 }}
-              className="relative w-full max-w-lg bg-white rounded-2xl border border-slate-200/80 shadow-2xl overflow-hidden z-10"
+              className="relative w-full max-w-3xl bg-white rounded-2xl border border-slate-200/80 shadow-2xl overflow-hidden z-10"
             >
               {/* Header */}
               <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -716,20 +765,22 @@ export default function App() {
               {/* Form Content */}
               <div className="p-6 space-y-6 max-h-[75vh] overflow-y-auto">
                 {/* Sélecteur Annuel Complet */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                    Sélecteur "Annuel" (Période complète)
-                  </h4>
+                <div className="space-y-4 bg-slate-50/50 p-5 rounded-xl border border-slate-200/70">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      Sélecteur "Annuel" (Période complète de 12 mois)
+                    </h4>
+                  </div>
                   <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Définit la période de 12 mois complète (ex: du 01/08 au 31/07 de l'année à venir, ou du 01/01 au 31/12).
+                    Définit la période annuelle complète pour l'analyse globale (ex: du 01/08/2025 au 31/07/2026, ou du 01/01/2026 au 31/12/2026).
                   </p>
                   
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                     {/* Début */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date de début</label>
-                      <div className="flex gap-2">
+                    <div className="space-y-1.5 bg-white p-3.5 rounded-lg border border-slate-200">
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">Date de début</label>
+                      <div className="flex items-center gap-2">
                         <select
                           value={tempSettings.annuelComplet.startDay}
                           onChange={(e) => setTempSettings({
@@ -739,7 +790,8 @@ export default function App() {
                               startDay: parseInt(e.target.value)
                             }
                           })}
-                          className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 font-mono focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                          className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 font-mono focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                          title="Jour de début"
                         >
                           {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                             <option key={day} value={day}>{String(day).padStart(2, '0')}</option>
@@ -754,19 +806,39 @@ export default function App() {
                               startMonth: parseInt(e.target.value)
                             }
                           })}
-                          className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                          className="flex-1 min-w-[110px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                          title="Mois de début"
                         >
                           {MOIS_FR.map(m => (
                             <option key={m.value} value={m.value}>{m.label}</option>
                           ))}
                         </select>
+                        <input
+                          type="number"
+                          min="2000"
+                          max="2099"
+                          value={tempSettings.annuelComplet.startYear ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value ? parseInt(e.target.value) : undefined;
+                            setTempSettings({
+                              ...tempSettings,
+                              annuelComplet: {
+                                ...tempSettings.annuelComplet,
+                                startYear: val
+                              }
+                            });
+                          }}
+                          placeholder="Année"
+                          className="w-24 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 font-mono font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                          title="Année de début"
+                        />
                       </div>
                     </div>
 
                     {/* Fin */}
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date de fin</label>
-                      <div className="flex gap-2">
+                    <div className="space-y-1.5 bg-white p-3.5 rounded-lg border border-slate-200">
+                      <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">Date de fin</label>
+                      <div className="flex items-center gap-2">
                         <select
                           value={tempSettings.annuelComplet.endDay}
                           onChange={(e) => setTempSettings({
@@ -776,7 +848,8 @@ export default function App() {
                               endDay: parseInt(e.target.value)
                             }
                           })}
-                          className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 font-mono focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                          className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 font-mono focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                          title="Jour de fin"
                         >
                           {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                             <option key={day} value={day}>{String(day).padStart(2, '0')}</option>
@@ -791,35 +864,55 @@ export default function App() {
                               endMonth: parseInt(e.target.value)
                             }
                           })}
-                          className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                          className="flex-1 min-w-[110px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                          title="Mois de fin"
                         >
                           {MOIS_FR.map(m => (
                             <option key={m.value} value={m.value}>{m.label}</option>
                           ))}
                         </select>
+                        <input
+                          type="number"
+                          min="2000"
+                          max="2099"
+                          value={tempSettings.annuelComplet.endYear ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value ? parseInt(e.target.value) : undefined;
+                            setTempSettings({
+                              ...tempSettings,
+                              annuelComplet: {
+                                ...tempSettings.annuelComplet,
+                                endYear: val
+                              }
+                            });
+                          }}
+                          placeholder="Année"
+                          className="w-24 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 font-mono font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                          title="Année de fin"
+                        />
                       </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="border-t border-slate-100" />
-
                 {/* Sélecteur Conso Annuel */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider font-mono flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                    Sélecteur "Conso annuel" (Période cumulée)
-                  </h4>
+                <div className="space-y-4 bg-slate-50/50 p-5 rounded-xl border border-slate-200/70">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-blue-600 uppercase tracking-wider font-mono flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+                      Sélecteur "Conso annuel" (Période cumulée à date)
+                    </h4>
+                  </div>
                   <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Définit la période cumulée (ex: du 01/08 au jour d'aujourd'hui, ou du 01/01 au 31/12).
+                    Définit la période cumulée de l'année en cours (ex: du 01/08/2025 à aujourd'hui, ou jusqu'à une date fixe spécifique).
                   </p>
 
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       {/* Début */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date de début</label>
-                        <div className="flex gap-2">
+                      <div className="space-y-1.5 bg-white p-3.5 rounded-lg border border-slate-200">
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">Date de début</label>
+                        <div className="flex items-center gap-2">
                           <select
                             value={tempSettings.annuelConso.startDay}
                             onChange={(e) => setTempSettings({
@@ -829,7 +922,8 @@ export default function App() {
                                 startDay: parseInt(e.target.value)
                               }
                             })}
-                            className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 font-mono focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                            className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 font-mono focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                            title="Jour de début"
                           >
                             {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                               <option key={day} value={day}>{String(day).padStart(2, '0')}</option>
@@ -844,24 +938,47 @@ export default function App() {
                                 startMonth: parseInt(e.target.value)
                               }
                             })}
-                            className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                            className="flex-1 min-w-[110px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                            title="Mois de début"
                           >
                             {MOIS_FR.map(m => (
                               <option key={m.value} value={m.value}>{m.label}</option>
                             ))}
                           </select>
+                          <input
+                            type="number"
+                            min="2000"
+                            max="2099"
+                            value={tempSettings.annuelConso.startYear ?? ''}
+                            onChange={(e) => {
+                              const val = e.target.value ? parseInt(e.target.value) : undefined;
+                              setTempSettings({
+                                ...tempSettings,
+                                annuelConso: {
+                                  ...tempSettings.annuelConso,
+                                  startYear: val
+                                }
+                              });
+                            }}
+                            placeholder="Année"
+                            className="w-24 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 font-mono font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                            title="Année de début"
+                          />
                         </div>
                       </div>
 
                       {/* Fin conditionnelle */}
-                      <div className="space-y-1.5">
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Date de fin</label>
+                      <div className="space-y-1.5 bg-white p-3.5 rounded-lg border border-slate-200">
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider">Date de fin</label>
                         {tempSettings.annuelConso.useTodayAsEnd ? (
-                          <div className="h-[34px] flex items-center px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-500 italic">
-                            Aujourd'hui
+                          <div className="h-[34px] flex items-center justify-between px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 font-medium">
+                            <span className="italic text-slate-500">Aujourd'hui (dynamique)</span>
+                            <span className="font-mono text-[11px] text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded">
+                              {new Date().toLocaleDateString('fr-FR')}
+                            </span>
                           </div>
                         ) : (
-                          <div className="flex gap-2">
+                          <div className="flex items-center gap-2">
                             <select
                               value={tempSettings.annuelConso.endDay}
                               onChange={(e) => setTempSettings({
@@ -871,7 +988,8 @@ export default function App() {
                                   endDay: parseInt(e.target.value)
                                 }
                               })}
-                              className="w-20 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 font-mono focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                              className="w-16 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 font-mono focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                              title="Jour de fin"
                             >
                               {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
                                 <option key={day} value={day}>{String(day).padStart(2, '0')}</option>
@@ -886,18 +1004,38 @@ export default function App() {
                                   endMonth: parseInt(e.target.value)
                                 }
                               })}
-                              className="flex-1 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                              className="flex-1 min-w-[110px] rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                              title="Mois de fin"
                             >
                               {MOIS_FR.map(m => (
                                 <option key={m.value} value={m.value}>{m.label}</option>
                               ))}
                             </select>
+                            <input
+                              type="number"
+                              min="2000"
+                              max="2099"
+                              value={tempSettings.annuelConso.endYear ?? ''}
+                              onChange={(e) => {
+                                const val = e.target.value ? parseInt(e.target.value) : undefined;
+                                setTempSettings({
+                                  ...tempSettings,
+                                  annuelConso: {
+                                    ...tempSettings.annuelConso,
+                                    endYear: val
+                                  }
+                                });
+                              }}
+                              placeholder="Année"
+                              className="w-24 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 font-mono font-bold focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 focus:outline-none"
+                              title="Année de fin"
+                            />
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-1">
+                    <div className="flex items-center gap-2.5 bg-white p-3 rounded-lg border border-slate-200">
                       <input
                         id="checkbox-use-today"
                         type="checkbox"
@@ -909,10 +1047,10 @@ export default function App() {
                             useTodayAsEnd: e.target.checked
                           }
                         })}
-                        className="w-4 h-4 text-blue-600 border-slate-200 rounded-sm focus:ring-blue-500/20 cursor-pointer"
+                        className="w-4 h-4 text-blue-600 border-slate-300 rounded-sm focus:ring-blue-500/20 cursor-pointer"
                       />
-                      <label htmlFor="checkbox-use-today" className="text-xs text-slate-600 font-semibold cursor-pointer">
-                        Utiliser la date d'aujourd'hui comme date de fin dynamique
+                      <label htmlFor="checkbox-use-today" className="text-xs text-slate-700 font-medium cursor-pointer select-none">
+                        Utiliser automatiquement la date du jour comme date de fin dynamique
                       </label>
                     </div>
                   </div>
@@ -924,7 +1062,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={handleResetSelectorSettings}
-                  className="px-3 py-1.5 hover:bg-slate-100 text-slate-500 hover:text-slate-700 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-transparent hover:border-slate-200"
+                  className="px-3.5 py-1.5 hover:bg-slate-200/70 text-slate-600 hover:text-slate-800 rounded-lg text-xs font-semibold transition-colors cursor-pointer border border-slate-200 bg-white shadow-2xs"
                 >
                   Valeurs par défaut
                 </button>
