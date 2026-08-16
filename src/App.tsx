@@ -42,6 +42,7 @@ import StatsDashboard from './components/StatsDashboard';
 import BudgetPrevisionnel from './components/BudgetPrevisionnel';
 import Comparateur from './components/Comparateur';
 import EstimationFacture from './components/EstimationFacture';
+import EstimerAppareil from './components/EstimerAppareil';
 import SauvegardeExport from './components/SauvegardeExport';
 import SiteMiseAJour from './components/SiteMiseAJour';
 
@@ -84,7 +85,7 @@ export default function App() {
     return DEFAULT_TARIF_CONFIG;
   });
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'releves' | 'budget' | 'comparateur' | 'estimation' | 'config' | 'backup' | 'sites'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'releves' | 'budget' | 'comparateur' | 'estimation' | 'appareil' | 'config' | 'backup' | 'sites'>('dashboard');
   const [autoOpenTurpeModal, setAutoOpenTurpeModal] = useState<boolean>(false);
   const [periodSelection, setPeriodSelection] = useState<'total' | 'annuel' | 'annuel_complet'>('annuel_complet');
   const [showToast, setShowToast] = useState(false);
@@ -501,6 +502,19 @@ export default function App() {
             </button>
 
             <button
+              id="tab-appareil"
+              onClick={() => setActiveTab('appareil')}
+              className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg font-medium text-sm transition-all cursor-pointer ${
+                activeTab === 'appareil'
+                  ? 'bg-blue-50 text-blue-700 shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <Zap className={`w-4 h-4 ${activeTab === 'appareil' ? 'text-blue-600' : 'text-slate-400'}`} />
+              <span>Estimer un appareil</span>
+            </button>
+
+            <button
               id="tab-config"
               onClick={() => setActiveTab('config')}
               className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg font-medium text-sm transition-all cursor-pointer ${
@@ -567,6 +581,7 @@ export default function App() {
               {activeTab === 'budget' && "Planification Budgétaire Annuelle"}
               {activeTab === 'comparateur' && "Comparateur de Consommation & Factures"}
               {activeTab === 'estimation' && "Estimation de Facture & Calcul de la Part Fixe"}
+              {activeTab === 'appareil' && "Estimer la consommation d'un appareil électrique"}
               {activeTab === 'config' && "Paramètres de votre Abonnement Énergétique"}
               {activeTab === 'backup' && "Sauvegarde et Exportation de vos Données"}
               {activeTab === 'sites' && "Sites de Mise à Jour des Données & Tarifs"}
@@ -577,6 +592,7 @@ export default function App() {
               {activeTab === 'budget' && "Mensualités prévisionnelles détaillées incluant taxes et variations tarifaires"}
               {activeTab === 'comparateur' && "Comparez directement vos consommations et coûts TTC d'une année sur l'autre"}
               {activeTab === 'estimation' && "Calculez le montant exact de la part fixe et simulez vos coûts sur une période personnalisée"}
+              {activeTab === 'appareil' && "Calculez la consommation en kWh par jour, par mois et par an de vos équipements domestiques"}
               {activeTab === 'config' && "Ajustez vos tarifs et taxes réels pour des projections d'une précision totale"}
               {activeTab === 'backup' && "Exportez l'intégralité de l'application vers un fichier Excel ou restaurez une sauvegarde précédente"}
               {activeTab === 'sites' && "Accédez aux portails officiels pour actualiser vos barèmes TURPE, relevés et taxes"}
@@ -610,7 +626,7 @@ export default function App() {
 
         {/* Content Scrolling Pane */}
         <main className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/70">
-          {activeTab !== 'estimation' && activeTab !== 'config' && activeTab !== 'backup' && activeTab !== 'sites' && activeTab !== 'comparateur' && (
+          {activeTab !== 'estimation' && activeTab !== 'appareil' && activeTab !== 'config' && activeTab !== 'backup' && activeTab !== 'sites' && activeTab !== 'comparateur' && (
             <>
               {/* Période d'analyse des indicateurs */}
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
@@ -739,6 +755,12 @@ export default function App() {
                     autoOpenTurpeModal={autoOpenTurpeModal}
                     onTurpeModalClosed={() => setAutoOpenTurpeModal(false)}
                     onChangeConfig={handleChangeConfig}
+                  />
+                )}
+
+                {activeTab === 'appareil' && (
+                  <EstimerAppareil
+                    config={config}
                   />
                 )}
 
