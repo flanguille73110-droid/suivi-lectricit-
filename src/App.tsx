@@ -19,7 +19,10 @@ import {
   ShieldCheck,
   Zap,
   Save,
-  Download
+  Download,
+  Calculator,
+  Globe,
+  GitCompare
 } from 'lucide-react';
 
 import { Releve, TarifConfig, AnalyseMois, ComparaisonOption } from './types';
@@ -37,7 +40,10 @@ import RelevesTable from './components/RelevesTable';
 import ContratConfig from './components/ContratConfig';
 import StatsDashboard from './components/StatsDashboard';
 import BudgetPrevisionnel from './components/BudgetPrevisionnel';
+import Comparateur from './components/Comparateur';
+import EstimationFacture from './components/EstimationFacture';
 import SauvegardeExport from './components/SauvegardeExport';
+import SiteMiseAJour from './components/SiteMiseAJour';
 
 const MOIS_FR = [
   { value: 1, label: 'Janvier' },
@@ -63,10 +69,23 @@ export default function App() {
 
   const [config, setConfig] = useState<TarifConfig>(() => {
     const saved = localStorage.getItem('elec_budget_config');
-    return saved ? JSON.parse(saved) : DEFAULT_TARIF_CONFIG;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_TARIF_CONFIG,
+          ...parsed,
+          puissance: parsed.puissance ?? DEFAULT_TARIF_CONFIG.puissance
+        };
+      } catch (e) {
+        // ignore
+      }
+    }
+    return DEFAULT_TARIF_CONFIG;
   });
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'releves' | 'budget' | 'config' | 'backup'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'releves' | 'budget' | 'comparateur' | 'estimation' | 'config' | 'backup' | 'sites'>('dashboard');
+  const [autoOpenTurpeModal, setAutoOpenTurpeModal] = useState<boolean>(false);
   const [periodSelection, setPeriodSelection] = useState<'total' | 'annuel' | 'annuel_complet'>('annuel_complet');
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
@@ -456,6 +475,32 @@ export default function App() {
             </button>
 
             <button
+              id="tab-comparateur"
+              onClick={() => setActiveTab('comparateur')}
+              className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg font-medium text-sm transition-all cursor-pointer ${
+                activeTab === 'comparateur'
+                  ? 'bg-blue-50 text-blue-700 shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <GitCompare className={`w-4 h-4 ${activeTab === 'comparateur' ? 'text-blue-600' : 'text-slate-400'}`} />
+              <span>Comparateur</span>
+            </button>
+
+            <button
+              id="tab-estimation"
+              onClick={() => setActiveTab('estimation')}
+              className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg font-medium text-sm transition-all cursor-pointer ${
+                activeTab === 'estimation'
+                  ? 'bg-blue-50 text-blue-700 shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <Calculator className={`w-4 h-4 ${activeTab === 'estimation' ? 'text-blue-600' : 'text-slate-400'}`} />
+              <span>Estimation facture</span>
+            </button>
+
+            <button
               id="tab-config"
               onClick={() => setActiveTab('config')}
               className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg font-medium text-sm transition-all cursor-pointer ${
@@ -479,6 +524,19 @@ export default function App() {
             >
               <Save className={`w-4 h-4 ${activeTab === 'backup' ? 'text-blue-600' : 'text-slate-400'}`} />
               <span>Sauvegarde et export</span>
+            </button>
+
+            <button
+              id="tab-sites"
+              onClick={() => setActiveTab('sites')}
+              className={`w-full flex items-center space-x-3 px-4 py-2.5 rounded-lg font-medium text-sm transition-all cursor-pointer ${
+                activeTab === 'sites'
+                  ? 'bg-blue-50 text-blue-700 shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              <Globe className={`w-4 h-4 ${activeTab === 'sites' ? 'text-blue-600' : 'text-slate-400'}`} />
+              <span>Site de mise à jour</span>
             </button>
           </nav>
         </div>
@@ -507,15 +565,21 @@ export default function App() {
               {activeTab === 'dashboard' && "Synthèse de Consommation & Économies"}
               {activeTab === 'releves' && "Suivi & Saisie des Relevés de Compteurs"}
               {activeTab === 'budget' && "Planification Budgétaire Annuelle"}
+              {activeTab === 'comparateur' && "Comparateur de Consommation & Factures"}
+              {activeTab === 'estimation' && "Estimation de Facture & Calcul de la Part Fixe"}
               {activeTab === 'config' && "Paramètres de votre Abonnement Énergétique"}
               {activeTab === 'backup' && "Sauvegarde et Exportation de vos Données"}
+              {activeTab === 'sites' && "Sites de Mise à Jour des Données & Tarifs"}
             </h1>
             <p className="text-[11px] text-slate-400 font-medium">
               {activeTab === 'dashboard' && "Visualisez votre budget annuel et identifiez des opportunités d'économies"}
               {activeTab === 'releves' && "Gérez l'historique complet de vos consommations Heures Pleines / Heures Creuses"}
               {activeTab === 'budget' && "Mensualités prévisionnelles détaillées incluant taxes et variations tarifaires"}
+              {activeTab === 'comparateur' && "Comparez directement vos consommations et coûts TTC d'une année sur l'autre"}
+              {activeTab === 'estimation' && "Calculez le montant exact de la part fixe et simulez vos coûts sur une période personnalisée"}
               {activeTab === 'config' && "Ajustez vos tarifs et taxes réels pour des projections d'une précision totale"}
               {activeTab === 'backup' && "Exportez l'intégralité de l'application vers un fichier Excel ou restaurez une sauvegarde précédente"}
+              {activeTab === 'sites' && "Accédez aux portails officiels pour actualiser vos barèmes TURPE, relevés et taxes"}
             </p>
           </div>
 
@@ -546,79 +610,84 @@ export default function App() {
 
         {/* Content Scrolling Pane */}
         <main className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/70">
-          {/* Période d'analyse des indicateurs */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-            <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Période des indicateurs</h3>
-              <p className="text-xs text-slate-400 mt-1">
-                {periodSelection === 'annuel_complet'
-                  ? `Affichage des données cumulées du ${String(selectorSettings.annuelComplet.startDay).padStart(2, '0')}/${String(selectorSettings.annuelComplet.startMonth).padStart(2, '0')}/${fullStartYear} au ${String(selectorSettings.annuelComplet.endDay).padStart(2, '0')}/${String(selectorSettings.annuelComplet.endMonth).padStart(2, '0')}/${fullEndYear}`
-                  : periodSelection === 'annuel' 
-                  ? `Affichage des données cumulées du ${String(selectorSettings.annuelConso.startDay).padStart(2, '0')}/${String(selectorSettings.annuelConso.startMonth).padStart(2, '0')}/${startYear} au ${selectorSettings.annuelConso.useTodayAsEnd ? new Date().toLocaleDateString('fr-FR') : `${String(selectorSettings.annuelConso.endDay).padStart(2, '0')}/${String(selectorSettings.annuelConso.endMonth).padStart(2, '0')}/${new Date(todayStr).getFullYear()}`}`
-                  : 'Affichage de l\'intégralité des données historiques disponibles'
-                }
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 self-stretch md:self-auto w-full md:w-auto">
-              <button
-                type="button"
-                onClick={() => setIsSettingsModalOpen(true)}
-                className="px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 hover:border-slate-300 text-slate-600 hover:text-slate-800 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
-                title="Configurer les dates des sélecteurs"
-              >
-                <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
-                <span>Paramètres des sélecteurs</span>
-              </button>
-              
-              <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200/60 flex-1 sm:flex-initial">
-                <button
-                  type="button"
-                  onClick={() => setPeriodSelection('annuel_complet')}
-                  className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    periodSelection === 'annuel_complet'
-                      ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Annuel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPeriodSelection('annuel')}
-                  className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    periodSelection === 'annuel'
-                      ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Conso annuel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPeriodSelection('total')}
-                  className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                    periodSelection === 'total'
-                      ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50'
-                      : 'text-slate-500 hover:text-slate-800'
-                  }`}
-                >
-                  Total
-                </button>
+          {activeTab !== 'estimation' && activeTab !== 'config' && activeTab !== 'backup' && activeTab !== 'sites' && activeTab !== 'comparateur' && (
+            <>
+              {/* Période d'analyse des indicateurs */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Période des indicateurs</h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {periodSelection === 'annuel_complet'
+                      ? `Affichage des données cumulées du ${String(selectorSettings.annuelComplet.startDay).padStart(2, '0')}/${String(selectorSettings.annuelComplet.startMonth).padStart(2, '0')}/${fullStartYear} au ${String(selectorSettings.annuelComplet.endDay).padStart(2, '0')}/${String(selectorSettings.annuelComplet.endMonth).padStart(2, '0')}/${fullEndYear}`
+                      : periodSelection === 'annuel' 
+                      ? `Affichage des données cumulées du ${String(selectorSettings.annuelConso.startDay).padStart(2, '0')}/${String(selectorSettings.annuelConso.startMonth).padStart(2, '0')}/${startYear} au ${selectorSettings.annuelConso.useTodayAsEnd ? new Date().toLocaleDateString('fr-FR') : `${String(selectorSettings.annuelConso.endDay).padStart(2, '0')}/${String(selectorSettings.annuelConso.endMonth).padStart(2, '0')}/${new Date(todayStr).getFullYear()}`}`
+                      : 'Affichage de l\'intégralité des données historiques disponibles'
+                    }
+                  </p>
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 self-stretch md:self-auto w-full md:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsModalOpen(true)}
+                    className="px-3.5 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 hover:border-slate-300 text-slate-600 hover:text-slate-800 rounded-lg text-xs font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs"
+                    title="Configurer les dates des sélecteurs"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Paramètres des sélecteurs</span>
+                  </button>
+                  
+                  <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200/60 flex-1 sm:flex-initial">
+                    <button
+                      type="button"
+                      onClick={() => setPeriodSelection('annuel_complet')}
+                      className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        periodSelection === 'annuel_complet'
+                          ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Annuel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPeriodSelection('annuel')}
+                      className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        periodSelection === 'annuel'
+                          ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Conso annuel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPeriodSelection('total')}
+                      className={`flex-1 sm:flex-initial px-4 py-1.5 text-xs font-bold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                        periodSelection === 'total'
+                          ? 'bg-white text-blue-600 shadow-sm border border-slate-200/50'
+                          : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                    >
+                      Total
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Key Metrics Dashboard Row */}
-          <Header
-            config={config}
-            totalConso={displayConso}
-            totalCoutTTC={displayCoutTTC}
-            ratioHP={displayRatioHP}
-            nombreDeMois={displayNombreDeMois}
-            overrideAbonnement={displayOverrideAbonnement}
-            isFilteredOrSimulated={showFiltered || periodSelection !== 'total'}
-            badgeText={displayBadgeText}
-          />
+              {/* Key Metrics Dashboard Row */}
+              <Header
+                config={config}
+                totalConso={displayConso}
+                totalCoutTTC={displayCoutTTC}
+                ratioHP={displayRatioHP}
+                nombreDeMois={displayNombreDeMois}
+                overrideAbonnement={displayOverrideAbonnement}
+                isFilteredOrSimulated={showFiltered || periodSelection !== 'total'}
+                badgeText={displayBadgeText}
+                releves={releves}
+              />
+            </>
+          )}
 
           {/* Dynamic Interactive View */}
           <div>
@@ -655,6 +724,24 @@ export default function App() {
                   />
                 )}
 
+                {activeTab === 'comparateur' && (
+                  <Comparateur
+                    releves={releves}
+                    config={config}
+                  />
+                )}
+
+                {activeTab === 'estimation' && (
+                  <EstimationFacture
+                    config={config}
+                    releves={releves}
+                    analyseMois={analyseMois}
+                    autoOpenTurpeModal={autoOpenTurpeModal}
+                    onTurpeModalClosed={() => setAutoOpenTurpeModal(false)}
+                    onChangeConfig={handleChangeConfig}
+                  />
+                )}
+
                 {activeTab === 'config' && (
                   <ContratConfig
                     config={config}
@@ -668,6 +755,18 @@ export default function App() {
                     config={config}
                     onImportData={handleImportData}
                     triggerToast={triggerToast}
+                  />
+                )}
+
+                {activeTab === 'sites' && (
+                  <SiteMiseAJour
+                    triggerToast={triggerToast}
+                    onNavigateToTab={(tab, options) => {
+                      setActiveTab(tab);
+                      if (options?.openTurpeModal) {
+                        setAutoOpenTurpeModal(true);
+                      }
+                    }}
                   />
                 )}
               </motion.div>

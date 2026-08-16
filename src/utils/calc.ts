@@ -8,15 +8,16 @@ import { Releve, TarifConfig, AnalyseMois, ComparaisonOption } from '../types';
 // Valeurs par défaut réalistes pour un contrat d'électricité en France (EDF Tarif Bleu 2025/2026)
 export const DEFAULT_TARIF_CONFIG: TarifConfig = {
   type: 'HP_HC',
+  puissance: 15,
   prixKwhBase: 0.2516, // €/kWh en Option Base
   prixKwhHP: 0.2700,   // €/kWh Heures Pleines
   prixKwhHC: 0.2068,   // €/kWh Heures Creuses
   abonnementMensuel: 15.20, // €/mois pour une puissance de 9 kVA (courant en France)
   debut: '2024-08-01',
   fin: '',
-  heureDebutHC: '22:00',
-  heureFinHC: '06:00',
-  nombrePrelevements: 11,
+  heureDebutHC: '23:00',
+  heureFinHC: '07:00',
+  nombrePrelevements: 10,
   taxes: {
     cta: 21.05,        // % de l'abonnement par défaut (Contribution Tarifaire d'Acheminement, ~3.20 €/mois)
     cspe: 0.0225,      // €/kWh (Accise sur l'électricité / TICFE)
@@ -35,7 +36,9 @@ export const DEFAULT_TARIF_CONFIG: TarifConfig = {
       prixKwhBase: 0.2276,
       prixKwhHP: 0.2460,
       prixKwhHC: 0.1828,
-      abonnementMensuel: 13.50
+      abonnementMensuel: 13.50,
+      tvaReduite: 5.5,
+      tvaNormale: 20.0
     },
     {
       id: 'p2',
@@ -45,7 +48,9 @@ export const DEFAULT_TARIF_CONFIG: TarifConfig = {
       prixKwhBase: 0.2516,
       prixKwhHP: 0.2700,
       prixKwhHC: 0.2068,
-      abonnementMensuel: 14.20
+      abonnementMensuel: 14.20,
+      tvaReduite: 5.5,
+      tvaNormale: 20.0
     },
     {
       id: 'p3',
@@ -55,7 +60,9 @@ export const DEFAULT_TARIF_CONFIG: TarifConfig = {
       prixKwhBase: 0.2516,
       prixKwhHP: 0.2700,
       prixKwhHC: 0.2068,
-      abonnementMensuel: 15.20
+      abonnementMensuel: 15.20,
+      tvaReduite: 5.5,
+      tvaNormale: 20.0
     },
     {
       id: 'p4',
@@ -65,7 +72,9 @@ export const DEFAULT_TARIF_CONFIG: TarifConfig = {
       prixKwhBase: 0.2516,
       prixKwhHP: 0.2850,
       prixKwhHC: 0.2185,
-      abonnementMensuel: 15.20
+      abonnementMensuel: 15.20,
+      tvaReduite: 5.5,
+      tvaNormale: 20.0
     }
   ]
 };
@@ -155,23 +164,14 @@ export function getConfigPourDate(dateStr: string, config: TarifConfig): TarifCo
     return config;
   }
   
-  // Normaliser la date recherchée pour éviter les soucis de fuseau horaire
-  const [year, month, day] = dateStr.split('-').map(Number);
-  const searchDate = new Date(year, month - 1, day);
-  const searchTime = searchDate.getTime();
+  // Format YYYY-MM-DD standard pour comparaison inclusive stricte
+  const formattedDate = dateStr.slice(0, 10);
   
-  // Trouver la période correspondante
+  // Trouver la période correspondante (les jours de début et de fin sont strictement inclus)
   const periode = config.periodes.find(p => {
-    const [pY, pM, pD] = p.debut.split('-').map(Number);
-    const start = new Date(pY, pM - 1, pD).getTime();
-    
-    let end = Infinity;
-    if (p.fin) {
-      const [fY, fM, fD] = p.fin.split('-').map(Number);
-      end = new Date(fY, fM - 1, fD).getTime();
-    }
-    
-    return searchTime >= start && searchTime <= end;
+    const debut = p.debut;
+    const fin = p.fin && p.fin.trim() !== '' ? p.fin : '9999-12-31';
+    return formattedDate >= debut && formattedDate <= fin;
   });
   
   if (periode) {
@@ -185,6 +185,8 @@ export function getConfigPourDate(dateStr: string, config: TarifConfig): TarifCo
         ...config.taxes,
         cta: periode.cta !== undefined ? periode.cta : config.taxes.cta,
         cspe: periode.cspe !== undefined ? periode.cspe : config.taxes.cspe,
+        tvaReduite: periode.tvaReduite !== undefined ? periode.tvaReduite : 5.5,
+        tvaNormale: periode.tvaNormale !== undefined ? periode.tvaNormale : 20.0,
         ctaType: periode.ctaType !== undefined ? periode.ctaType : config.taxes.ctaType,
         cspeType: periode.cspeType !== undefined ? periode.cspeType : config.taxes.cspeType,
       }

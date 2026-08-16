@@ -255,7 +255,7 @@ export default function StatsDashboard({ analyseMois, comparaisonOptions, config
                 <span className="w-3 h-3 rounded-full mt-1 shrink-0" style={{ backgroundColor: COUT_COLORS.partTaxes }} />
                 <div>
                   <div className="text-xs font-bold text-slate-800">Part Taxes de l'État ({((totalPartTaxes / totalCoutCumule) * 100 || 0).toFixed(0)}%)</div>
-                  <div className="text-xs text-slate-500">{totalPartTaxes.toFixed(2)} € — CSPE (TICFE) et la TVA globale de 20% sur la part énergie.</div>
+                  <div className="text-xs text-slate-500">{totalPartTaxes.toFixed(2)} € — CSPE (TICFE) et la TVA globale de {config.taxes.tvaNormale}% sur la part énergie.</div>
                 </div>
               </div>
             </div>

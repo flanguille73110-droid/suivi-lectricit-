@@ -25,12 +25,25 @@ export interface TarifPeriode {
   abonnementMensuel: number;
   cta?: number;
   cspe?: number;
+  tvaReduite?: number;
+  tvaNormale?: number;
   ctaType?: 'mensuel' | 'annuel' | 'pourcentage';
   cspeType?: 'par_kwh' | 'annuel' | 'pourcentage';
 }
 
+export interface TurpePeriode {
+  id: string;
+  debut: string; // YYYY-MM-DD
+  fin: string;   // YYYY-MM-DD (vide si période en cours/actuelle)
+  puissance: number; // kVA (3, 6, 9, 12, 15, 18, 24, 30, 36)
+  turpeCG: number;   // Composante de Gestion (€/an)
+  turpeCC: number;   // Composante de Comptage (€/an)
+  turpeCSF: number;  // Part fixe de la composante de soutirage (€/kVA/an)
+}
+
 export interface TarifConfig {
   type: TarifType;
+  puissance?: number; // kVA (3, 6, 9, 12, 15, 18, 24, 30, 36)
   prixKwhBase: number; // €/kWh
   prixKwhHP: number;   // €/kWh (Heures Pleines)
   prixKwhHC: number;   // €/kWh (Heures Creuses)
@@ -38,6 +51,7 @@ export interface TarifConfig {
   taxes: TaxesConfig;
   haussePrevue: number; // Hausse de tarif future simulée (en %)
   periodes?: TarifPeriode[];
+  periodesTurpe?: TurpePeriode[];
   debut?: string; // YYYY-MM-DD
   fin?: string;   // YYYY-MM-DD
   heureDebutHC?: string; // HH:MM
