@@ -413,6 +413,9 @@ export default function Comparateur({ releves, config }: ComparateurProps) {
   const deltaCoutTTC = Math.round((statsN.coutTotalTTC - statsN1.coutTotalTTC) * 100) / 100;
   const percentCoutTTC = statsN1.coutTotalTTC > 0 ? ((statsN.coutTotalTTC - statsN1.coutTotalTTC) / statsN1.coutTotalTTC) * 100 : 0;
 
+  const deltaCoutEnergieHT = Math.round((statsN.coutEnergieHT - statsN1.coutEnergieHT) * 100) / 100;
+  const percentCoutEnergieHT = statsN1.coutEnergieHT > 0 ? ((statsN.coutEnergieHT - statsN1.coutEnergieHT) / statsN1.coutEnergieHT) * 100 : 0;
+
   const deltaPrixKwh = Math.round((statsN.prixMoyenKwhTTC - statsN1.prixMoyenKwhTTC) * 10000) / 10000;
   const percentPrixKwh = statsN1.prixMoyenKwhTTC > 0 ? ((statsN.prixMoyenKwhTTC - statsN1.prixMoyenKwhTTC) / statsN1.prixMoyenKwhTTC) * 100 : 0;
 
@@ -638,53 +641,53 @@ export default function Comparateur({ releves, config }: ComparateurProps) {
           </div>
         </div>
 
-        {/* Carte 3 : Hausse Tarifaire */}
+        {/* Carte 3 : Hausse Tarifaire (Coût Énergie (kWh) HT) */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               Hausse Tarifaire
             </span>
             <div className={`p-2 rounded-xl ${
-              percentPrixKwh > 0
+              percentCoutEnergieHT > 0
                 ? 'bg-rose-50 text-rose-600'
-                : percentPrixKwh < 0
+                : percentCoutEnergieHT < 0
                 ? 'bg-emerald-50 text-emerald-600'
                 : 'bg-slate-50 text-slate-600'
             }`}>
-              {percentPrixKwh < 0 ? <TrendingDown className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
+              {percentCoutEnergieHT < 0 ? <TrendingDown className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
             </div>
           </div>
 
           <div>
             <div className="flex items-baseline gap-2">
               <span className={`text-2xl font-black font-mono tracking-tight ${
-                percentPrixKwh > 0
+                percentCoutEnergieHT > 0
                   ? 'text-rose-600'
-                  : percentPrixKwh < 0
+                  : percentCoutEnergieHT < 0
                   ? 'text-emerald-600'
                   : 'text-slate-900'
               }`}>
-                {percentPrixKwh > 0 ? `+${percentPrixKwh.toFixed(2).replace('.', ',')}%` : `${percentPrixKwh.toFixed(2).replace('.', ',')}%`}
+                {percentCoutEnergieHT > 0 ? `+${percentCoutEnergieHT.toFixed(2).replace('.', ',')}%` : `${percentCoutEnergieHT.toFixed(2).replace('.', ',')}%`}
               </span>
               <span className={`text-xs font-bold px-2 py-0.5 rounded-md ${
-                percentPrixKwh > 0
+                percentCoutEnergieHT > 0
                   ? 'bg-rose-100 text-rose-800'
-                  : percentPrixKwh < 0
+                  : percentCoutEnergieHT < 0
                   ? 'bg-emerald-100 text-emerald-800'
                   : 'bg-slate-100 text-slate-700'
               }`}>
-                {percentPrixKwh > 0 ? 'Hausse' : percentPrixKwh < 0 ? 'Baisse' : 'Stable'}
+                {percentCoutEnergieHT > 0 ? 'Hausse' : percentCoutEnergieHT < 0 ? 'Baisse' : 'Stable'}
               </span>
             </div>
             <div className="text-xs text-slate-500 mt-0.5">
-              Écart kWh TTC : <strong className="font-mono text-slate-700">{deltaPrixKwh > 0 ? `+${deltaPrixKwh.toFixed(4).replace('.', ',')}` : deltaPrixKwh.toFixed(4).replace('.', ',')} €/kWh</strong>
+              Écart Énergie (kWh) HT : <strong className="font-mono text-slate-700">{deltaCoutEnergieHT > 0 ? `+${deltaCoutEnergieHT.toFixed(2).replace('.', ',')}` : deltaCoutEnergieHT.toFixed(2).replace('.', ',')} € HT</strong>
             </div>
           </div>
 
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="font-semibold text-slate-500">Tarif moyen N-1 → N :</span>
+            <span className="font-semibold text-slate-500">Énergie HT N-1 → N :</span>
             <span className="font-mono font-bold text-slate-700 px-2 py-0.5 rounded bg-slate-100 border border-slate-200">
-              {statsN1.prixMoyenKwhTTC.toFixed(3).replace('.', ',')} € → {statsN.prixMoyenKwhTTC.toFixed(3).replace('.', ',')} €
+              {statsN1.coutEnergieHT.toFixed(2).replace('.', ',')} € → {statsN.coutEnergieHT.toFixed(2).replace('.', ',')} €
             </span>
           </div>
         </div>

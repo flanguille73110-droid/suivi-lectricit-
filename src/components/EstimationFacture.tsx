@@ -118,6 +118,8 @@ export default function EstimationFacture({
   const [dateDebut, setDateDebut] = useState<string>(defaultStart);
   const [dateFin, setDateFin] = useState<string>(defaultEnd);
   const [appliquerHausse, setAppliquerHausse] = useState<boolean>(true);
+  const [appliquerHausseAboTaxe, setAppliquerHausseAboTaxe] = useState<boolean>(true);
+  const [tauxHausseAboTaxe, setTauxHausseAboTaxe] = useState<number>(() => config.haussePrevue || 3);
 
   const isDateFinFuture = Boolean(dateFin && dateFin > todayStr);
 
@@ -335,9 +337,13 @@ export default function EstimationFacture({
       const dateStr = `${year}-${monthStr}-${dayStr}`;
       const monthKey = `${year}-${monthStr}`;
 
-      // Un jour est considéré estimé s'il est strictement postérieur à la date du dernier relevé
-      const isEstime = Boolean(lastReleveDate && dateStr > lastReleveDate);
+      // Un jour est considéré estimé s'il est strictement postérieur à la date du dernier relevé ou aujourd'hui
+      const isEstime = Boolean((lastReleveDate && dateStr > lastReleveDate) || dateStr > todayStr);
       if (isEstime) hasAnyEstime = true;
+
+      const coeffHausseAbo = (isDateFinFuture && appliquerHausseAboTaxe && isEstime)
+        ? (1 + (tauxHausseAboTaxe / 100))
+        : 1;
 
       // Recherche dans l'historique des périodes
       const matchedPeriode = (config.periodes || []).find((p) => {
@@ -346,9 +352,12 @@ export default function EstimationFacture({
         return dateStr >= pDebut && dateStr <= pFin;
       });
 
+      const baseAboMensuel = matchedPeriode ? matchedPeriode.abonnementMensuel : config.abonnementMensuel;
+      const aboMensuel = baseAboMensuel * coeffHausseAbo;
+      const aboAnnuel = Math.round(aboMensuel * 12 * 100) / 100;
+      const dayAboHT = (aboMensuel * 12) / 365.25;
+
       if (matchedPeriode) {
-        const aboAnnuel = Math.round(matchedPeriode.abonnementMensuel * 12 * 100) / 100;
-        const dayAboHT = (matchedPeriode.abonnementMensuel * 12) / 365.25;
         days.push({
           dateStr,
           periodeId: matchedPeriode.id,
@@ -356,14 +365,12 @@ export default function EstimationFacture({
           isHistorique: true,
           isEstime,
           monthKey,
-          abonnementMensuel: matchedPeriode.abonnementMensuel,
+          abonnementMensuel: aboMensuel,
           aboAnnuel,
           dayAboHT
         });
       } else {
         // Configuration du contrat & tarifs actuelle
-        const aboAnnuel = Math.round(config.abonnementMensuel * 12 * 100) / 100;
-        const dayAboHT = (config.abonnementMensuel * 12) / 365.25;
         days.push({
           dateStr,
           periodeId: '__current_contract__',
@@ -371,7 +378,7 @@ export default function EstimationFacture({
           isHistorique: false,
           isEstime,
           monthKey,
-          abonnementMensuel: config.abonnementMensuel,
+          abonnementMensuel: aboMensuel,
           aboAnnuel,
           dayAboHT
         });
@@ -502,7 +509,7 @@ export default function EstimationFacture({
       dateDernierReleve: lastReleveDate,
       hasPeriodeEstimee: hasAnyEstime
     };
-  }, [dateDebut, dateFin, config, releves, isValidInterval, nbJours]);
+  }, [dateDebut, dateFin, config, releves, isValidInterval, nbJours, isDateFinFuture, appliquerHausseAboTaxe, tauxHausseAboTaxe, todayStr]);
 
   // Calcul de la décomposition de la Part Variable (Consommation) par tranches tarifaires
   // Avec estimation automatique mois par mois basée sur l'historique des années précédentes
@@ -946,12 +953,20 @@ export default function EstimationFacture({
     });
     const avgDailyTotal = dailyConsoMap.size > 0 ? sumCovered / dailyConsoMap.size : 0;
 
+    let lastReleveDate = '';
+    if (releves && releves.length > 0) {
+      const sortedReleves = [...releves].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      lastReleveDate = sortedReleves[sortedReleves.length - 1].date;
+    }
+
     // 2. Attribution jour par jour pour chaque taxe (Accise et CTA)
     interface DayTaxInfo {
       dateStr: string;
       periodeId: string;
       nom: string;
       isHistorique: boolean;
+      isEstime: boolean;
+      monthKey: string;
       acciseTaux: number;
       ctaTaux: number;
       ctaType: 'pourcentage' | 'mensuel' | 'annuel';
@@ -970,6 +985,9 @@ export default function EstimationFacture({
       const monthStr = String(tempDate.getMonth() + 1).padStart(2, '0');
       const dayStr = String(tempDate.getDate()).padStart(2, '0');
       const dateStr = `${year}-${monthStr}-${dayStr}`;
+      const monthKey = `${year}-${monthStr}`;
+
+      const isEstime = Boolean((lastReleveDate && dateStr > lastReleveDate) || dateStr > todayStr);
 
       const matchedPeriode = (config.periodes || []).find((p) => {
         const pDebut = p.debut;
@@ -978,9 +996,15 @@ export default function EstimationFacture({
       });
 
       const dayConso = dailyConsoMap.get(dateStr) ?? avgDailyTotal;
-      const acciseTaux = matchedPeriode && matchedPeriode.cspe !== undefined
+      const baseAcciseTaux = matchedPeriode && matchedPeriode.cspe !== undefined
         ? matchedPeriode.cspe
         : config.taxes.cspe;
+
+      const coeffHausseAccise = (isDateFinFuture && appliquerHausseAboTaxe && isEstime)
+        ? (1 + (tauxHausseAboTaxe / 100))
+        : 1;
+
+      const acciseTaux = baseAcciseTaux * coeffHausseAccise;
 
       const ctaTaux = matchedPeriode && matchedPeriode.cta !== undefined
         ? matchedPeriode.cta
@@ -990,29 +1014,18 @@ export default function EstimationFacture({
         ? matchedPeriode.ctaType
         : (config.taxes.ctaType || 'pourcentage');
 
-      if (matchedPeriode) {
-        daysTax.push({
-          dateStr,
-          periodeId: matchedPeriode.id,
-          nom: matchedPeriode.nom || 'Période historique',
-          isHistorique: true,
-          acciseTaux,
-          ctaTaux,
-          ctaType,
-          consoKw: dayConso
-        });
-      } else {
-        daysTax.push({
-          dateStr,
-          periodeId: '__current_contract__',
-          nom: 'Configuration du contrat & tarifs',
-          isHistorique: false,
-          acciseTaux,
-          ctaTaux,
-          ctaType,
-          consoKw: dayConso
-        });
-      }
+      daysTax.push({
+        dateStr,
+        periodeId: matchedPeriode ? matchedPeriode.id : '__current_contract__',
+        nom: matchedPeriode ? (matchedPeriode.nom || 'Période historique') : 'Configuration du contrat & tarifs',
+        isHistorique: Boolean(matchedPeriode),
+        isEstime,
+        monthKey,
+        acciseTaux,
+        ctaTaux,
+        ctaType,
+        consoKw: dayConso
+      });
 
       tempDate.setDate(tempDate.getDate() + 1);
     }
@@ -1022,6 +1035,8 @@ export default function EstimationFacture({
       id: string;
       nom: string;
       isHistorique: boolean;
+      isEstime: boolean;
+      monthKey: string;
       dateDebut: string;
       dateFin: string;
       acciseTaux: number;
@@ -1038,41 +1053,51 @@ export default function EstimationFacture({
           id: d.periodeId,
           nom: d.nom,
           isHistorique: d.isHistorique,
+          isEstime: d.isEstime,
+          monthKey: d.monthKey,
           dateDebut: d.dateStr,
           dateFin: d.dateStr,
           acciseTaux: d.acciseTaux,
           nbJours: 1,
           sumConsoKw: d.consoKw
         };
-      } else if (
-        currentSliceAccise.id === d.periodeId &&
-        Math.abs(currentSliceAccise.acciseTaux - d.acciseTaux) < 0.00001
-      ) {
-        currentSliceAccise.dateFin = d.dateStr;
-        currentSliceAccise.nbJours += 1;
-        currentSliceAccise.sumConsoKw += d.consoKw;
       } else {
-        slicesAccise.push({
-          id: `${currentSliceAccise.id}-${currentSliceAccise.dateDebut}`,
-          nom: currentSliceAccise.nom,
-          isHistorique: currentSliceAccise.isHistorique,
-          dateDebut: currentSliceAccise.dateDebut,
-          dateFin: currentSliceAccise.dateFin,
-          acciseTaux: currentSliceAccise.acciseTaux,
-          nbJours: currentSliceAccise.nbJours,
-          sumConsoKw: currentSliceAccise.sumConsoKw
-        });
+        const canGroup = currentSliceAccise.id === d.periodeId &&
+          Math.abs(currentSliceAccise.acciseTaux - d.acciseTaux) < 0.00001 &&
+          currentSliceAccise.isEstime === d.isEstime &&
+          (!d.isEstime || currentSliceAccise.monthKey === d.monthKey);
 
-        currentSliceAccise = {
-          id: d.periodeId,
-          nom: d.nom,
-          isHistorique: d.isHistorique,
-          dateDebut: d.dateStr,
-          dateFin: d.dateStr,
-          acciseTaux: d.acciseTaux,
-          nbJours: 1,
-          sumConsoKw: d.consoKw
-        };
+        if (canGroup) {
+          currentSliceAccise.dateFin = d.dateStr;
+          currentSliceAccise.nbJours += 1;
+          currentSliceAccise.sumConsoKw += d.consoKw;
+        } else {
+          slicesAccise.push({
+            id: `${currentSliceAccise.id}-${currentSliceAccise.dateDebut}`,
+            nom: currentSliceAccise.nom,
+            isHistorique: currentSliceAccise.isHistorique,
+            isEstime: currentSliceAccise.isEstime,
+            monthKey: currentSliceAccise.monthKey,
+            dateDebut: currentSliceAccise.dateDebut,
+            dateFin: currentSliceAccise.dateFin,
+            acciseTaux: currentSliceAccise.acciseTaux,
+            nbJours: currentSliceAccise.nbJours,
+            sumConsoKw: currentSliceAccise.sumConsoKw
+          });
+
+          currentSliceAccise = {
+            id: d.periodeId,
+            nom: d.nom,
+            isHistorique: d.isHistorique,
+            isEstime: d.isEstime,
+            monthKey: d.monthKey,
+            dateDebut: d.dateStr,
+            dateFin: d.dateStr,
+            acciseTaux: d.acciseTaux,
+            nbJours: 1,
+            sumConsoKw: d.consoKw
+          };
+        }
       }
     }
 
@@ -1081,6 +1106,8 @@ export default function EstimationFacture({
         id: `${currentSliceAccise.id}-${currentSliceAccise.dateDebut}`,
         nom: currentSliceAccise.nom,
         isHistorique: currentSliceAccise.isHistorique,
+        isEstime: currentSliceAccise.isEstime,
+        monthKey: currentSliceAccise.monthKey,
         dateDebut: currentSliceAccise.dateDebut,
         dateFin: currentSliceAccise.dateFin,
         acciseTaux: currentSliceAccise.acciseTaux,
@@ -1094,6 +1121,8 @@ export default function EstimationFacture({
       id: string;
       nom: string;
       isHistorique: boolean;
+      isEstime: boolean;
+      monthKey: string;
       dateDebut: string;
       dateFin: string;
       ctaTaux: number;
@@ -1110,41 +1139,51 @@ export default function EstimationFacture({
           id: d.periodeId,
           nom: d.nom,
           isHistorique: d.isHistorique,
+          isEstime: d.isEstime,
+          monthKey: d.monthKey,
           dateDebut: d.dateStr,
           dateFin: d.dateStr,
           ctaTaux: d.ctaTaux,
           ctaType: d.ctaType,
           nbJours: 1
         };
-      } else if (
-        currentSliceCta.id === d.periodeId &&
-        Math.abs(currentSliceCta.ctaTaux - d.ctaTaux) < 0.00001 &&
-        currentSliceCta.ctaType === d.ctaType
-      ) {
-        currentSliceCta.dateFin = d.dateStr;
-        currentSliceCta.nbJours += 1;
       } else {
-        slicesCta.push({
-          id: `${currentSliceCta.id}-${currentSliceCta.dateDebut}`,
-          nom: currentSliceCta.nom,
-          isHistorique: currentSliceCta.isHistorique,
-          dateDebut: currentSliceCta.dateDebut,
-          dateFin: currentSliceCta.dateFin,
-          ctaTaux: currentSliceCta.ctaTaux,
-          ctaType: currentSliceCta.ctaType,
-          nbJours: currentSliceCta.nbJours
-        });
+        const canGroup = currentSliceCta.id === d.periodeId &&
+          Math.abs(currentSliceCta.ctaTaux - d.ctaTaux) < 0.00001 &&
+          currentSliceCta.ctaType === d.ctaType &&
+          currentSliceCta.isEstime === d.isEstime &&
+          (!d.isEstime || currentSliceCta.monthKey === d.monthKey);
 
-        currentSliceCta = {
-          id: d.periodeId,
-          nom: d.nom,
-          isHistorique: d.isHistorique,
-          dateDebut: d.dateStr,
-          dateFin: d.dateStr,
-          ctaTaux: d.ctaTaux,
-          ctaType: d.ctaType,
-          nbJours: 1
-        };
+        if (canGroup) {
+          currentSliceCta.dateFin = d.dateStr;
+          currentSliceCta.nbJours += 1;
+        } else {
+          slicesCta.push({
+            id: `${currentSliceCta.id}-${currentSliceCta.dateDebut}`,
+            nom: currentSliceCta.nom,
+            isHistorique: currentSliceCta.isHistorique,
+            isEstime: currentSliceCta.isEstime,
+            monthKey: currentSliceCta.monthKey,
+            dateDebut: currentSliceCta.dateDebut,
+            dateFin: currentSliceCta.dateFin,
+            ctaTaux: currentSliceCta.ctaTaux,
+            ctaType: currentSliceCta.ctaType,
+            nbJours: currentSliceCta.nbJours
+          });
+
+          currentSliceCta = {
+            id: d.periodeId,
+            nom: d.nom,
+            isHistorique: d.isHistorique,
+            isEstime: d.isEstime,
+            monthKey: d.monthKey,
+            dateDebut: d.dateStr,
+            dateFin: d.dateStr,
+            ctaTaux: d.ctaTaux,
+            ctaType: d.ctaType,
+            nbJours: 1
+          };
+        }
       }
     }
 
@@ -1153,6 +1192,8 @@ export default function EstimationFacture({
         id: `${currentSliceCta.id}-${currentSliceCta.dateDebut}`,
         nom: currentSliceCta.nom,
         isHistorique: currentSliceCta.isHistorique,
+        isEstime: currentSliceCta.isEstime,
+        monthKey: currentSliceCta.monthKey,
         dateDebut: currentSliceCta.dateDebut,
         dateFin: currentSliceCta.dateFin,
         ctaTaux: currentSliceCta.ctaTaux,
@@ -1182,10 +1223,14 @@ export default function EstimationFacture({
       const montant = Math.round(roundedKw * slice.acciseTaux * 100) / 100;
       sumTaxesHT += montant;
 
+      const isHausseAccise = isDateFinFuture && appliquerHausseAboTaxe && slice.isEstime && tauxHausseAboTaxe !== 0;
+      const estimLabel = slice.isEstime ? (isHausseAccise ? `ESTIMATIF (+${tauxHausseAboTaxe}% hausse) ` : 'ESTIMATIF ') : '';
+      const estimDetail = slice.isEstime ? ` • Estimé${isHausseAccise ? ` (avec hausse de +${tauxHausseAboTaxe}%)` : ''}` : '';
+
       rows.push({
         id: `accise-${slice.id}`,
-        designation: `Accise (CSPE) du ${toFrenchDate(slice.dateDebut)} au ${toFrenchDate(slice.dateFin)}`,
-        details: `${slice.isHistorique && slice.nom ? `${slice.nom} • ` : ''}${slice.nbJours} jours`,
+        designation: `${estimLabel}Accise (CSPE) du ${toFrenchDate(slice.dateDebut)} au ${toFrenchDate(slice.dateFin)}`,
+        details: `${slice.isHistorique && slice.nom ? `${slice.nom} • ` : ''}${slice.nbJours} jours${estimDetail}`,
         assiette: `${roundedKw.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} kWh`,
         assietteVal: roundedKw,
         taux: `${slice.acciseTaux.toFixed(4).replace('.', ',')} € / kWh`,
@@ -1202,29 +1247,34 @@ export default function EstimationFacture({
     for (const slice of slicesCta) {
       // Formule demandée : ((CG + CC + Calcul CSF) * (nombre de jours de la période / 365)) = assiette CTA
       const assietteCta = (turpeFixeTotalAnnuel * slice.nbJours) / 365;
+      const isHausseCta = isDateFinFuture && appliquerHausseAboTaxe && slice.isEstime && tauxHausseAboTaxe !== 0;
+      const coeffHausseCta = isHausseCta ? (1 + (tauxHausseAboTaxe / 100)) : 1;
       
       let montantCta = 0;
       let tauxAffiche = '';
 
       if (slice.ctaType === 'pourcentage') {
-        montantCta = Math.round(assietteCta * (slice.ctaTaux / 100) * 100) / 100;
-        tauxAffiche = `${slice.ctaTaux.toString().replace('.', ',')} %`;
+        montantCta = Math.round(assietteCta * (slice.ctaTaux / 100) * coeffHausseCta * 100) / 100;
+        tauxAffiche = `${slice.ctaTaux.toString().replace('.', ',')} %${isHausseCta ? ` (+${tauxHausseAboTaxe}% hausse)` : ''}`;
       } else if (slice.ctaType === 'mensuel') {
         // En montant mensuel fixe
-        montantCta = Math.round((slice.ctaTaux * (slice.nbJours / 30.4375)) * 100) / 100;
-        tauxAffiche = `${slice.ctaTaux.toFixed(2).replace('.', ',')} € / mois`;
+        montantCta = Math.round((slice.ctaTaux * (slice.nbJours / 30.4375)) * coeffHausseCta * 100) / 100;
+        tauxAffiche = `${(slice.ctaTaux * coeffHausseCta).toFixed(2).replace('.', ',')} € / mois`;
       } else {
         // En montant annuel fixe
-        montantCta = Math.round((slice.ctaTaux * (slice.nbJours / 365)) * 100) / 100;
-        tauxAffiche = `${slice.ctaTaux.toFixed(2).replace('.', ',')} € / an`;
+        montantCta = Math.round((slice.ctaTaux * (slice.nbJours / 365)) * coeffHausseCta * 100) / 100;
+        tauxAffiche = `${(slice.ctaTaux * coeffHausseCta).toFixed(2).replace('.', ',')} € / an`;
       }
 
       sumTaxesHT += montantCta;
 
+      const estimLabelCta = slice.isEstime ? (isHausseCta ? `ESTIMATIF (+${tauxHausseAboTaxe}% hausse) ` : 'ESTIMATIF ') : '';
+      const estimDetailCta = slice.isEstime ? ` • Formule TURPE estimée${isHausseCta ? ` (avec hausse de +${tauxHausseAboTaxe}%)` : ''}` : ' • Formule TURPE';
+
       rows.push({
         id: `cta-${slice.id}`,
-        designation: `Contribution Tarifaire d'Acheminement (CTA) du ${toFrenchDate(slice.dateDebut)} au ${toFrenchDate(slice.dateFin)}`,
-        details: `${slice.isHistorique && slice.nom ? `${slice.nom} • ` : ''}${slice.nbJours} jours • Formule TURPE`,
+        designation: `${estimLabelCta}Contribution Tarifaire d'Acheminement (CTA) du ${toFrenchDate(slice.dateDebut)} au ${toFrenchDate(slice.dateFin)}`,
+        details: `${slice.isHistorique && slice.nom ? `${slice.nom} • ` : ''}${slice.nbJours} jours${estimDetailCta}`,
         assiette: `${assietteCta.toFixed(2).replace('.', ',')} €`,
         assietteVal: assietteCta,
         taux: tauxAffiche,
@@ -1239,7 +1289,7 @@ export default function EstimationFacture({
       slicesCta,
       totalTaxesHT: Math.round(sumTaxesHT * 100) / 100
     };
-  }, [dateDebut, dateFin, config, releves, isValidInterval, nbJours, turpeCG, turpeCC, turpeCSF]);
+  }, [dateDebut, dateFin, config, releves, isValidInterval, nbJours, turpeCG, turpeCC, turpeCSF, isDateFinFuture, appliquerHausseAboTaxe, tauxHausseAboTaxe, todayStr]);
 
   // Calcul des lignes du tableau Calcul TVA par période
   const { tvaRows, totalTvaMontant } = useMemo(() => {
@@ -1342,14 +1392,19 @@ export default function EstimationFacture({
         ? matchedPeriode.tvaNormale
         : (config.taxes.tvaNormale !== undefined ? config.taxes.tvaNormale : 20.0);
 
-      const dayAboHT = matchedPeriode
-        ? (matchedPeriode.abonnementMensuel * 12) / 365.25
-        : (config.abonnementMensuel * 12) / 365.25;
-
       const isEstime = Boolean((lastReleveDate && dateStr > lastReleveDate) || dateStr > todayStr);
       const coeffHausse = (isDateFinFuture && appliquerHausse && isEstime)
         ? (1 + (config.haussePrevue || 0) / 100)
         : 1;
+
+      const coeffHausseAboTaxeVal = (isDateFinFuture && appliquerHausseAboTaxe && isEstime)
+        ? (1 + (tauxHausseAboTaxe / 100))
+        : 1;
+
+      const baseDayAboHT = matchedPeriode
+        ? (matchedPeriode.abonnementMensuel * 12) / 365.25
+        : (config.abonnementMensuel * 12) / 365.25;
+      const dayAboHT = baseDayAboHT * coeffHausseAboTaxeVal;
 
       let dayVarHT = 0;
       if (config.type === 'HP_HC') {
@@ -1361,9 +1416,9 @@ export default function EstimationFacture({
         dayVarHT = (dayConso.hp + dayConso.hc) * prixBase;
       }
 
-      const acciseTaux = matchedPeriode && matchedPeriode.cspe !== undefined
+      const acciseTaux = (matchedPeriode && matchedPeriode.cspe !== undefined
         ? matchedPeriode.cspe
-        : config.taxes.cspe;
+        : config.taxes.cspe) * coeffHausseAboTaxeVal;
       const dayConsoTotale = dayConso.hp + dayConso.hc;
       const dayAcciseHT = dayConsoTotale * acciseTaux;
 
@@ -1376,11 +1431,11 @@ export default function EstimationFacture({
 
       let dayCtaHT = 0;
       if (ctaType === 'pourcentage') {
-        dayCtaHT = assietteCtaJour * (ctaTaux / 100);
+        dayCtaHT = assietteCtaJour * (ctaTaux / 100) * coeffHausseAboTaxeVal;
       } else if (ctaType === 'mensuel') {
-        dayCtaHT = ctaTaux / 30.4375;
+        dayCtaHT = (ctaTaux / 30.4375) * coeffHausseAboTaxeVal;
       } else {
-        dayCtaHT = ctaTaux / 365;
+        dayCtaHT = (ctaTaux / 365) * coeffHausseAboTaxeVal;
       }
 
       if (matchedPeriode) {
@@ -1626,7 +1681,7 @@ export default function EstimationFacture({
       tvaRows: rows,
       totalTvaMontant: Math.round(sumTotalTva * 100) / 100
     };
-  }, [dateDebut, dateFin, config, releves, isValidInterval, nbJours, turpeCG, turpeCC, turpeCSF, isDateFinFuture, appliquerHausse, todayStr]);
+  }, [dateDebut, dateFin, config, releves, isValidInterval, nbJours, turpeCG, turpeCC, turpeCSF, isDateFinFuture, appliquerHausse, appliquerHausseAboTaxe, tauxHausseAboTaxe, todayStr]);
 
   // Fonction de génération et téléchargement du PDF d'estimation de facture
   const handleDownloadPdf = () => {
@@ -1754,7 +1809,8 @@ export default function EstimationFacture({
     for (const p of periodesSlices) {
       checkPageBreak(7);
       const dateStr = `Du ${toFrenchDate(p.dateDebut)} au ${toFrenchDate(p.dateFin)}`;
-      const label = `${p.nom || 'Période'}${p.isEstime ? ' (Estime)' : ''} - ${dateStr}`;
+      const isHausseP = isDateFinFuture && appliquerHausseAboTaxe && p.isEstime && tauxHausseAboTaxe !== 0;
+      const label = `${p.nom || 'Période'}${p.isEstime ? (isHausseP ? ` (Estime +${tauxHausseAboTaxe}%)` : ' (Estime)') : ''} - ${dateStr}`;
       doc.text(cleanPdfText(label.substring(0, 68)), 14, y);
       doc.text(cleanPdfText(`${p.nbJours || 0} j (${(p.nbMois || 0).toFixed(2).replace('.', ',')} m)`), 110, y);
       doc.text(cleanPdfText(`${(p.abonnementMensuel || 0).toFixed(2).replace('.', ',')} €/m`), 140, y);
@@ -1983,26 +2039,70 @@ export default function EstimationFacture({
         </div>
 
         {isValidInterval && isDateFinFuture && (
-          <div className="mt-4 pt-3.5 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-3 bg-purple-50/70 p-3.5 rounded-xl border border-purple-200/80">
-            <label htmlFor="checkbox-appliquer-hausse" className="flex items-center gap-3 cursor-pointer select-none">
-              <input
-                id="checkbox-appliquer-hausse"
-                type="checkbox"
-                checked={appliquerHausse}
-                onChange={(e) => setAppliquerHausse(e.target.checked)}
-                className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer accent-purple-600 shrink-0"
-              />
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
-                  Appliquer la hausse tarifaire
-                </span>
-                <span className="text-[11px] text-purple-800">
-                  Simule la hausse de <strong className="font-bold">+{config.haussePrevue || 0}%</strong> (définie dans Configuration Contrat) sur les jours et mois estimés.
-                </span>
+          <div className="mt-4 pt-3.5 border-t border-slate-200/60 space-y-2.5">
+            {/* 1ère case : Appliquer la hausse tarifaire (énergie kWh) */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-purple-50/70 p-3.5 rounded-xl border border-purple-200/80">
+              <label htmlFor="checkbox-appliquer-hausse" className="flex items-center gap-3 cursor-pointer select-none">
+                <input
+                  id="checkbox-appliquer-hausse"
+                  type="checkbox"
+                  checked={appliquerHausse}
+                  onChange={(e) => setAppliquerHausse(e.target.checked)}
+                  className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer accent-purple-600 shrink-0"
+                />
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                    Appliquer la hausse tarifaire
+                  </span>
+                  <span className="text-[11px] text-purple-800">
+                    Simule la hausse de <strong className="font-bold">+{config.haussePrevue || 0}%</strong> (définie dans Configuration Contrat) sur les consommations en kWh estimées.
+                  </span>
+                </div>
+              </label>
+              <div className="text-xs font-mono font-bold text-purple-800 bg-purple-100/90 px-3 py-1 rounded-lg border border-purple-200 shrink-0">
+                {appliquerHausse ? `+${config.haussePrevue || 0}% appliqué sur le kWh` : 'Hausse non appliquée'}
               </div>
-            </label>
-            <div className="text-xs font-mono font-bold text-purple-800 bg-purple-100/90 px-3 py-1 rounded-lg border border-purple-200 shrink-0">
-              {appliquerHausse ? `+${config.haussePrevue || 0}% appliqué sur le kWh` : 'Hausse non appliquée'}
+            </div>
+
+            {/* 2ème case : Appliquer une hausse (Abonnement, Accise, CTA) avec champ modifiable */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-indigo-50/70 p-3.5 rounded-xl border border-indigo-200/80">
+              <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+                <input
+                  id="checkbox-appliquer-hausse-fixe-taxe"
+                  type="checkbox"
+                  checked={appliquerHausseAboTaxe}
+                  onChange={(e) => setAppliquerHausseAboTaxe(e.target.checked)}
+                  className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500 cursor-pointer accent-indigo-600 shrink-0"
+                />
+                <label htmlFor="checkbox-appliquer-hausse-fixe-taxe" className="flex flex-col cursor-pointer select-none">
+                  <span className="text-xs font-bold text-indigo-950 flex items-center gap-1.5">
+                    Appliquer une hausse
+                  </span>
+                  <span className="text-[11px] text-indigo-800">
+                    Applique ce pourcentage de hausse sur l'abonnement estimé, le montant en € des Accises estimé et de la CTA estimée.
+                  </span>
+                </label>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 bg-white/80 px-3 py-1.5 rounded-lg border border-indigo-200 shadow-2xs">
+                <label htmlFor="input-pourcentage-hausse-fixe" className="text-xs font-bold text-indigo-900">
+                  Pourcentage :
+                </label>
+                <div className="relative flex items-center">
+                  <input
+                    id="input-pourcentage-hausse-fixe"
+                    type="number"
+                    step="0.1"
+                    min="0"
+                    max="100"
+                    value={tauxHausseAboTaxe}
+                    onChange={(e) => setTauxHausseAboTaxe(parseFloat(e.target.value) || 0)}
+                    disabled={!appliquerHausseAboTaxe}
+                    className="w-20 rounded-md border border-indigo-300 bg-white px-2.5 py-1 text-xs font-mono font-bold text-indigo-950 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 disabled:opacity-50 disabled:bg-slate-100 shadow-2xs text-right pr-6"
+                  />
+                  <span className="absolute right-2 text-xs font-bold text-indigo-700 pointer-events-none">%</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -2124,11 +2224,17 @@ export default function EstimationFacture({
                     <td className="py-3.5 px-4">
                       <div className="font-semibold text-slate-800 flex items-center gap-2">
                         <span className={`w-2 h-2 rounded-full ${slice.isEstime ? 'bg-amber-500' : 'bg-blue-500'}`}></span>
-                        <span>{slice.isEstime ? 'Abonnement "ESTIMATIF"' : 'Abonnement'} du {toFrenchDate(slice.dateDebut)} au {toFrenchDate(slice.dateFin)}</span>
+                        <span>
+                          {slice.isEstime
+                            ? (isDateFinFuture && appliquerHausseAboTaxe && tauxHausseAboTaxe !== 0
+                                ? `Abonnement "ESTIMATIF (+${tauxHausseAboTaxe}% hausse)"`
+                                : 'Abonnement "ESTIMATIF"')
+                            : 'Abonnement'} du {toFrenchDate(slice.dateDebut)} au {toFrenchDate(slice.dateFin)}
+                        </span>
                       </div>
                       <div className="text-[10px] text-slate-400 ml-4 mt-0.5">
                         {slice.isHistorique && slice.nom ? `${slice.nom} • ` : ''}
-                        {slice.nbJours} jours • {slice.abonnementMensuel.toFixed(2).replace('.', ',')} €/mois HT{slice.isEstime ? ' • Période estimée sans relevé' : ''}
+                        {slice.nbJours} jours • {slice.abonnementMensuel.toFixed(2).replace('.', ',')} €/mois HT{slice.isEstime ? (isDateFinFuture && appliquerHausseAboTaxe && tauxHausseAboTaxe !== 0 ? ` • Période estimée (+${tauxHausseAboTaxe}% hausse)` : ' • Période estimée sans relevé') : ''}
                       </div>
                     </td>
                     <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-700">
