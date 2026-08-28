@@ -826,9 +826,15 @@ export default function EstimationFacture({
       consoKw: number;
       tarifKwh: number;
       montantHT: number;
+      isHeaderTotal?: boolean;
+      index1?: number;
+      index2?: number;
+      estimConso?: number;
     }
 
-    const rows: VariableRow[] = [];
+    const hpRows: VariableRow[] = [];
+    const hcRows: VariableRow[] = [];
+    const baseRows: VariableRow[] = [];
     let sumConsoHP = 0;
     let sumConsoHC = 0;
     let sumMontantHT = 0;
@@ -844,7 +850,7 @@ export default function EstimationFacture({
         sumConsoHP += roundedHP;
         sumMontantHT += montantHP;
 
-        rows.push({
+        hpRows.push({
           id: `${slice.id}-HP`,
           periodeLabel: `${estimLabel}Du ${toFrenchDate(slice.dateDebut)} au ${toFrenchDate(slice.dateFin)} - Heures Pleines (HP)`,
           periodeDetails: `${slice.isHistorique && slice.nom ? `${slice.nom} • ` : ''}${slice.nbJours} jours${estimDetail}`,
@@ -864,7 +870,7 @@ export default function EstimationFacture({
         sumConsoHC += roundedHC;
         sumMontantHT += montantHC;
 
-        rows.push({
+        hcRows.push({
           id: `${slice.id}-HC`,
           periodeLabel: `${estimLabel}Du ${toFrenchDate(slice.dateDebut)} au ${toFrenchDate(slice.dateFin)} - Heures Creuses (HC)`,
           periodeDetails: `${slice.isHistorique && slice.nom ? `${slice.nom} • ` : ''}${slice.nbJours} jours${estimDetail}`,
@@ -885,7 +891,7 @@ export default function EstimationFacture({
         sumConsoHP += roundedBase;
         sumMontantHT += montantBase;
 
-        rows.push({
+        baseRows.push({
           id: `${slice.id}-BASE`,
           periodeLabel: `${estimLabel}Du ${toFrenchDate(slice.dateDebut)} au ${toFrenchDate(slice.dateFin)} - Option Base`,
           periodeDetails: `${slice.isHistorique && slice.nom ? `${slice.nom} • ` : ''}${slice.nbJours} jours${estimDetail}`,
@@ -901,6 +907,167 @@ export default function EstimationFacture({
         });
       }
     }
+
+    // Calcul de l'index 1, index 2 et totalEstimé pour chaque type de poste
+    const sortedReleves = [...releves].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    const getIndexForDate = (targetDateStr: string, typePoste: 'HP' | 'HC' | 'BASE'): number => {
+      if (sortedReleves.length === 0) return 0;
+      
+      const exact = sortedReleves.find(r => r.date === targetDateStr);
+      if (exact) {
+        if (typePoste === 'HP') return exact.indexHP;
+        if (typePoste === 'HC') return exact.indexHC;
+        return exact.indexHP;
+      }
+
+      let before: Releve | null = null;
+      let after: Releve | null = null;
+      
+      for (const r of sortedReleves) {
+        if (r.date < targetDateStr) {
+          before = r;
+        } else if (r.date > targetDateStr && !after) {
+          after = r;
+        }
+      }
+
+      const getVal = (r: Releve) => {
+        if (typePoste === 'HP') return r.indexHP;
+        if (typePoste === 'HC') return r.indexHC;
+        return r.indexHP;
+      };
+
+      if (before && after) {
+        const t1 = new Date(before.date).getTime();
+        const t2 = new Date(after.date).getTime();
+        const tTarget = new Date(targetDateStr).getTime();
+        const fraction = (tTarget - t1) / (t2 - t1);
+        const valBefore = getVal(before);
+        const valAfter = getVal(after);
+        return Math.round(valBefore + (valAfter - valBefore) * fraction);
+      }
+
+      if (before) {
+        return getVal(before);
+      }
+
+      if (after) {
+        return getVal(after);
+      }
+
+      return 0;
+    };
+
+    const getIndex2 = (typePoste: 'HP' | 'HC' | 'BASE'): number => {
+      if (sortedReleves.length === 0) return 0;
+      const lastReleve = sortedReleves[sortedReleves.length - 1];
+      
+      if (dateFin > todayStr) {
+        if (typePoste === 'HP') return lastReleve.indexHP;
+        if (typePoste === 'HC') return lastReleve.indexHC;
+        return lastReleve.indexHP;
+      } else {
+        return getIndexForDate(dateFin, typePoste);
+      }
+    };
+
+    const totalEstimHP = slicesVar
+      .filter(s => s.isEstime)
+      .reduce((acc, s) => acc + Math.round(s.sumConsoHP), 0);
+
+    const totalEstimHC = slicesVar
+      .filter(s => s.isEstime)
+      .reduce((acc, s) => acc + Math.round(s.sumConsoHC), 0);
+
+    const totalEstimBase = slicesVar
+      .filter(s => s.isEstime)
+      .reduce((acc, s) => acc + Math.round(s.sumConsoHP), 0);
+
+    let finalHpRows: VariableRow[] = [];
+    let finalHcRows: VariableRow[] = [];
+    let finalBaseRows: VariableRow[] = [];
+
+    if (config.type === 'HP_HC') {
+      const index1_HP = getIndexForDate(dateDebut, 'HP');
+      const index2_HP = getIndex2('HP');
+      const diff_HP = Math.max(0, index2_HP - index1_HP);
+      const totalConsoHP = diff_HP + totalEstimHP;
+
+      const hpHeaderRow: VariableRow = {
+        id: 'header-total-HP',
+        periodeLabel: 'TOTAL HEURES PLEINES (HP)',
+        periodeDetails: `Index début : ${index1_HP.toLocaleString('fr-FR')} kWh • Index fin (ou dernier saisi) : ${index2_HP.toLocaleString('fr-FR')} kWh • Différence réelle : ${diff_HP.toLocaleString('fr-FR')} kWh${totalEstimHP > 0 ? ` • Estimation : +${totalEstimHP.toLocaleString('fr-FR')} kWh` : ''}`,
+        typePoste: 'HP',
+        nomType: 'Heures Pleines (HP)',
+        dateDebut: dateDebut,
+        dateFin: dateFin,
+        isEstime: false,
+        nbJours: nbJours,
+        consoKw: totalConsoHP,
+        tarifKwh: 0,
+        montantHT: 0,
+        isHeaderTotal: true,
+        index1: index1_HP,
+        index2: index2_HP,
+        estimConso: totalEstimHP
+      };
+
+      const index1_HC = getIndexForDate(dateDebut, 'HC');
+      const index2_HC = getIndex2('HC');
+      const diff_HC = Math.max(0, index2_HC - index1_HC);
+      const totalConsoHC = diff_HC + totalEstimHC;
+
+      const hcHeaderRow: VariableRow = {
+        id: 'header-total-HC',
+        periodeLabel: 'TOTAL HEURES CREUSES (HC)',
+        periodeDetails: `Index début : ${index1_HC.toLocaleString('fr-FR')} kWh • Index fin (ou dernier saisi) : ${index2_HC.toLocaleString('fr-FR')} kWh • Différence réelle : ${diff_HC.toLocaleString('fr-FR')} kWh${totalEstimHC > 0 ? ` • Estimation : +${totalEstimHC.toLocaleString('fr-FR')} kWh` : ''}`,
+        typePoste: 'HC',
+        nomType: 'Heures Creuses (HC)',
+        dateDebut: dateDebut,
+        dateFin: dateFin,
+        isEstime: false,
+        nbJours: nbJours,
+        consoKw: totalConsoHC,
+        tarifKwh: 0,
+        montantHT: 0,
+        isHeaderTotal: true,
+        index1: index1_HC,
+        index2: index2_HC,
+        estimConso: totalEstimHC
+      };
+
+      finalHpRows = hpRows.length > 0 ? [hpHeaderRow, ...hpRows] : [hpHeaderRow];
+      finalHcRows = hcRows.length > 0 ? [hcHeaderRow, ...hcRows] : [hcHeaderRow];
+    } else {
+      const index1_Base = getIndexForDate(dateDebut, 'BASE');
+      const index2_Base = getIndex2('BASE');
+      const diff_Base = Math.max(0, index2_Base - index1_Base);
+      const totalConsoBase = diff_Base + totalEstimBase;
+
+      const baseHeaderRow: VariableRow = {
+        id: 'header-total-BASE',
+        periodeLabel: 'TOTAL OPTION BASE',
+        periodeDetails: `Index début : ${index1_Base.toLocaleString('fr-FR')} kWh • Index fin (ou dernier saisi) : ${index2_Base.toLocaleString('fr-FR')} kWh • Différence réelle : ${diff_Base.toLocaleString('fr-FR')} kWh${totalEstimBase > 0 ? ` • Estimation : +${totalEstimBase.toLocaleString('fr-FR')} kWh` : ''}`,
+        typePoste: 'BASE',
+        nomType: 'Option Base',
+        dateDebut: dateDebut,
+        dateFin: dateFin,
+        isEstime: false,
+        nbJours: nbJours,
+        consoKw: totalConsoBase,
+        tarifKwh: 0,
+        montantHT: 0,
+        isHeaderTotal: true,
+        index1: index1_Base,
+        index2: index2_Base,
+        estimConso: totalEstimBase
+      };
+
+      finalBaseRows = baseRows.length > 0 ? [baseHeaderRow, ...baseRows] : [baseHeaderRow];
+    }
+
+    const rows = [...finalHpRows, ...finalHcRows, ...finalBaseRows];
 
     return {
       variableRows: rows,
@@ -1844,11 +2011,32 @@ export default function EstimationFacture({
     for (const vr of variableRows) {
       checkPageBreak(7);
       const label = vr.periodeLabel || '';
-      doc.text(cleanPdfText(label.substring(0, 68)), 14, y);
-      doc.text(cleanPdfText(`${(vr.consoKw || 0).toFixed(2).replace('.', ',')} kWh`), 110, y);
-      doc.text(cleanPdfText(`${(vr.tarifKwh || 0).toFixed(5).replace('.', ',')} €/kWh`), 140, y);
-      doc.text(cleanPdfText(`${(vr.montantHT || 0).toFixed(2).replace('.', ',')} €`), 175, y);
-      y += 5;
+      if (vr.isHeaderTotal) {
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 41, 59); // Slate-800
+        doc.text(cleanPdfText(label.substring(0, 68)), 14, y);
+        doc.text(cleanPdfText(`${(vr.consoKw || 0).toLocaleString('fr-FR')} kWh`), 110, y);
+        doc.text(cleanPdfText("-"), 140, y);
+        doc.text(cleanPdfText("-"), 175, y);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(15, 23, 42);
+        y += 5;
+        if (vr.periodeDetails) {
+          checkPageBreak(5);
+          doc.setFontSize(6.5);
+          doc.setTextColor(100, 116, 139);
+          doc.text(cleanPdfText(`   ${vr.periodeDetails}`), 14, y);
+          doc.setFontSize(7.5);
+          doc.setTextColor(15, 23, 42);
+          y += 4;
+        }
+      } else {
+        doc.text(cleanPdfText(label.substring(0, 68)), 14, y);
+        doc.text(cleanPdfText(`${(vr.consoKw || 0).toFixed(2).replace('.', ',')} kWh`), 110, y);
+        doc.text(cleanPdfText(`${(vr.tarifKwh || 0).toFixed(5).replace('.', ',')} €/kWh`), 140, y);
+        doc.text(cleanPdfText(`${(vr.montantHT || 0).toFixed(2).replace('.', ',')} €`), 175, y);
+        y += 5;
+      }
     }
 
     doc.setFont('helvetica', 'bold');
@@ -2309,31 +2497,70 @@ export default function EstimationFacture({
                   </td>
                 </tr>
               ) : (
-                variableRows.map((row, idx) => (
-                  <tr key={row.id || idx} className="hover:bg-slate-50/60 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-800 flex items-center gap-2">
-                        <span className={`w-2 h-2 rounded-full ${
-                          row.typePoste === 'HP' ? 'bg-amber-500' :
-                          row.typePoste === 'HC' ? 'bg-indigo-500' : 'bg-emerald-500'
-                        }`}></span>
-                        <span>{row.periodeLabel}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 ml-4 mt-0.5">
-                        {row.periodeDetails}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-800">
-                      {row.consoKw.toLocaleString('fr-FR')} kWh
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono text-slate-600">
-                      {row.tarifKwh.toFixed(4).replace('.', ',')} € / kWh
-                    </td>
-                    <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
-                      {row.montantHT.toFixed(2).replace('.', ',')} €
-                    </td>
-                  </tr>
-                ))
+                variableRows.map((row, idx) => {
+                  if (row.isHeaderTotal) {
+                    const bgClass = row.typePoste === 'HP' 
+                      ? 'bg-amber-50/90 border-y border-amber-200/60 text-amber-950' 
+                      : row.typePoste === 'HC'
+                      ? 'bg-indigo-50/90 border-y border-indigo-200/60 text-indigo-950'
+                      : 'bg-emerald-50/90 border-y border-emerald-200/60 text-emerald-950';
+                    const bulletClass = row.typePoste === 'HP' 
+                      ? 'bg-amber-600 shadow-xs' 
+                      : row.typePoste === 'HC'
+                      ? 'bg-indigo-600 shadow-xs'
+                      : 'bg-emerald-600 shadow-xs';
+                    const detailColor = row.typePoste === 'HP' ? 'text-amber-800' :
+                      row.typePoste === 'HC' ? 'text-indigo-800' : 'text-emerald-800';
+                    return (
+                      <tr key={row.id || idx} className={`${bgClass} font-bold transition-colors shadow-2xs`}>
+                        <td className="py-3 px-4">
+                          <div className="font-extrabold flex items-center gap-2">
+                            <span className={`w-3 h-3 rounded-full ${bulletClass}`}></span>
+                            <span>{row.periodeLabel}</span>
+                          </div>
+                          <div className={`text-[11px] ml-5 mt-1 font-semibold ${detailColor}`}>
+                            {row.periodeDetails}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono font-extrabold text-[13px]">
+                          {row.consoKw.toLocaleString('fr-FR')} kWh
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-slate-400 font-normal">
+                          -
+                        </td>
+                        <td className="py-3 px-4 text-right font-mono text-slate-400 font-normal">
+                          -
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return (
+                    <tr key={row.id || idx} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="py-3.5 px-4">
+                        <div className="font-semibold text-slate-800 flex items-center gap-2">
+                          <span className={`w-2 h-2 rounded-full ${
+                            row.typePoste === 'HP' ? 'bg-amber-500' :
+                            row.typePoste === 'HC' ? 'bg-indigo-500' : 'bg-emerald-500'
+                          }`}></span>
+                          <span>{row.periodeLabel}</span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 ml-4 mt-0.5">
+                          {row.periodeDetails}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-semibold text-slate-800">
+                        {row.consoKw.toLocaleString('fr-FR')} kWh
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono text-slate-600">
+                        {row.tarifKwh.toFixed(4).replace('.', ',')} € / kWh
+                      </td>
+                      <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
+                        {row.montantHT.toFixed(2).replace('.', ',')} €
+                      </td>
+                    </tr>
+                  );
+                })
               )}
 
               {/* Ligne : Total Part Variable HT */}
