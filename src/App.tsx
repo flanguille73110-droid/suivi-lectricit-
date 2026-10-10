@@ -275,7 +275,7 @@ export default function App() {
   }, []);
 
   // Tester la connexion Supabase
-  const runConnectionTest = useCallback(async (url: string, key: string) => {
+  const runConnectionTest = useCallback(async (url: string, key: string, tableName?: string) => {
     if (!url.trim() || !key.trim()) {
       setSupabaseConnected(false);
       setSupabaseTableExists(false);
@@ -283,7 +283,7 @@ export default function App() {
       return { connected: false, tableExists: false };
     }
     setIsCheckingConnection(true);
-    const res = await checkSupabaseConnection(url, key);
+    const res = await checkSupabaseConnection(url, key, tableName);
     setSupabaseConnected(res.connected);
     setSupabaseTableExists(res.tableExists);
     setConnectionError(res.error);
@@ -303,10 +303,14 @@ export default function App() {
       return;
     }
     const timer = setTimeout(() => {
-      runConnectionTest(storageSettings.supabaseUrl, storageSettings.supabasePublishableKey);
+      runConnectionTest(
+        storageSettings.supabaseUrl,
+        storageSettings.supabasePublishableKey,
+        storageSettings.supabaseTableName
+      );
     }, 400);
     return () => clearTimeout(timer);
-  }, [storageSettings.mode, storageSettings.supabaseUrl, storageSettings.supabasePublishableKey, runConnectionTest]);
+  }, [storageSettings.mode, storageSettings.supabaseUrl, storageSettings.supabasePublishableKey, storageSettings.supabaseTableName, runConnectionTest]);
 
   // Fonction : Charger de Local vers Supabase
   const handleLocalToSupabase = useCallback(async (silent: boolean = false) => {
@@ -319,7 +323,8 @@ export default function App() {
     const res = await pushLocalToSupabase(
       storageSettings.supabaseUrl,
       storageSettings.supabasePublishableKey,
-      payload
+      payload,
+      storageSettings.supabaseTableName
     );
     setIsSyncing(false);
 
@@ -337,7 +342,8 @@ export default function App() {
     } else {
       const conn = await checkSupabaseConnection(
         storageSettings.supabaseUrl,
-        storageSettings.supabasePublishableKey
+        storageSettings.supabasePublishableKey,
+        storageSettings.supabaseTableName
       );
       setSupabaseConnected(conn.connected);
       setSupabaseTableExists(conn.tableExists);
@@ -346,7 +352,7 @@ export default function App() {
         triggerToast(`Erreur Supabase : ${res.error || 'Échec de l\'envoi'}`);
       }
     }
-  }, [storageSettings.supabaseUrl, storageSettings.supabasePublishableKey, releves, config, selectorSettings]);
+  }, [storageSettings.supabaseUrl, storageSettings.supabasePublishableKey, storageSettings.supabaseTableName, releves, config, selectorSettings]);
 
   // Fonction : Charger de Supabase vers Local
   const handleSupabaseToLocal = useCallback(async (silentOnEmpty: boolean = false) => {
@@ -357,7 +363,8 @@ export default function App() {
     setIsSyncing(true);
     const res = await pullSupabaseToLocal(
       storageSettings.supabaseUrl,
-      storageSettings.supabasePublishableKey
+      storageSettings.supabasePublishableKey,
+      storageSettings.supabaseTableName
     );
     setIsSyncing(false);
 
@@ -405,7 +412,8 @@ export default function App() {
     } else {
       const conn = await checkSupabaseConnection(
         storageSettings.supabaseUrl,
-        storageSettings.supabasePublishableKey
+        storageSettings.supabasePublishableKey,
+        storageSettings.supabaseTableName
       );
       setSupabaseConnected(conn.connected);
       setSupabaseTableExists(conn.tableExists);
@@ -414,7 +422,7 @@ export default function App() {
         triggerToast(`Supabase : ${res.error || 'Impossible de charger les données.'}`);
       }
     }
-  }, [storageSettings.supabaseUrl, storageSettings.supabasePublishableKey]);
+  }, [storageSettings.supabaseUrl, storageSettings.supabasePublishableKey, storageSettings.supabaseTableName]);
 
   // Au démarrage / rafraîchissement de l'application : si mode Supabase, charger automatiquement de Supabase vers Local
   useEffect(() => {
@@ -1130,7 +1138,8 @@ export default function App() {
                     onTestConnection={() =>
                       runConnectionTest(
                         storageSettings.supabaseUrl,
-                        storageSettings.supabasePublishableKey
+                        storageSettings.supabasePublishableKey,
+                        storageSettings.supabaseTableName
                       )
                     }
                     onLocalToSupabase={() => handleLocalToSupabase(false)}

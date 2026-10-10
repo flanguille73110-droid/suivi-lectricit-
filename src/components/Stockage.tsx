@@ -17,8 +17,14 @@ import {
   Copy,
   Check,
   Info,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
-import { StorageSettings, SUPABASE_TABLE_NAME } from '../utils/supabaseStorage';
+import {
+  StorageSettings,
+  SUPABASE_TABLE_NAME,
+  getEffectiveTableName,
+} from '../utils/supabaseStorage';
 
 interface StockageProps {
   storageSettings: StorageSettings;
@@ -46,17 +52,25 @@ export default function Stockage({
   onSupabaseToLocal,
 }: StockageProps) {
   const [copiedSql, setCopiedSql] = useState(false);
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
 
-  const sqlScript = `create table if not exists public.${SUPABASE_TABLE_NAME} (
+  const effectiveTable = getEffectiveTableName(storageSettings.supabaseTableName);
+  const policyName = `politique_acces_${effectiveTable}`;
+
+  const sqlScript = `-- Table dédiée uniquement à VoltTrack (Suivi Électricité)
+-- N'écrase et ne modifie aucune autre table de vos autres applications
+create table if not exists public.${effectiveTable} (
   id text primary key,
   data jsonb not null,
   updated_at timestamptz default now()
 );
 
-alter table public.${SUPABASE_TABLE_NAME} enable row level security;
+alter table public.${effectiveTable} enable row level security;
 
-create policy "Autoriser lecture et ecriture publique"
-  on public.${SUPABASE_TABLE_NAME}
+drop policy if exists "${policyName}" on public.${effectiveTable};
+
+create policy "${policyName}"
+  on public.${effectiveTable}
   for all
   to anon, authenticated
   using (true)
@@ -198,7 +212,7 @@ create policy "Autoriser lecture et ecriture publique"
             </button>
           </div>
 
-          {/* Les 2 champs : URL et Clé Publiable */}
+          {/* Les champs : URL, Clé Publiable et Nom de la table isolée */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
@@ -237,6 +251,28 @@ create policy "Autoriser lecture et ecriture publique"
                 className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-xs font-mono text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               />
             </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                <Database className="w-3.5 h-3.5 text-blue-600" />
+                Nom de la table Supabase dédiée à cette application (pour ne jamais écraser vos autres applications)
+              </label>
+              <input
+                type="text"
+                value={storageSettings.supabaseTableName ?? SUPABASE_TABLE_NAME}
+                onChange={(e) =>
+                  onUpdateStorageSettings({
+                    ...storageSettings,
+                    supabaseTableName: e.target.value.replace(/[^a-zA-Z0-9_]/g, ''),
+                  })
+                }
+                placeholder={SUPABASE_TABLE_NAME}
+                className="w-full px-3.5 py-2 rounded-lg border border-slate-200 text-xs font-mono font-bold text-slate-800 bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+              />
+              <p className="text-[11px] text-slate-400 mt-1">
+                Table utilisée : <code className="font-mono font-bold text-slate-700">{effectiveTable}</code> (totalement isolée des autres tables de votre compte Supabase).
+              </p>
+            </div>
           </div>
 
           {/* État de la connexion */}
@@ -253,14 +289,14 @@ create policy "Autoriser lecture et ecriture publique"
               <>
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>
-                  <strong>Supabase connecté :</strong> La connexion est opérationnelle. Vos modifications sont automatiquement enregistrées et envoyées vers Supabase.
+                  <strong>Supabase connecté :</strong> La table <code>{effectiveTable}</code> est opérationnelle. Vos modifications sont automatiquement enregistrées et envoyées vers Supabase.
                 </span>
               </>
             ) : supabaseConnected && !supabaseTableExists ? (
               <>
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
                 <span>
-                  <strong>Connexion établie, mais table manquante :</strong> Exécutez le script SQL ci-dessous dans l'éditeur SQL de Supabase pour créer la table <code>{SUPABASE_TABLE_NAME}</code>.
+                  <strong>Connexion établie, mais table manquante :</strong> Exécutez le script SQL ci-dessous dans l'éditeur SQL de Supabase pour créer la table <code>{effectiveTable}</code>.
                 </span>
               </>
             ) : (
@@ -291,7 +327,7 @@ create policy "Autoriser lecture et ecriture publique"
 
               <button
                 type="button"
-                onClick={onSupabaseToLocal}
+                onClick={() => setIsConfirmModalOpen(true)}
                 disabled={isSyncing || !storageSettings.supabaseUrl || !storageSettings.supabasePublishableKey}
                 className="flex items-center justify-center gap-2.5 px-5 py-3.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 disabled:opacity-50 text-white rounded-xl font-bold text-xs uppercase tracking-wider shadow-sm transition-all cursor-pointer"
               >
@@ -300,6 +336,63 @@ create policy "Autoriser lecture et ecriture publique"
               </button>
             </div>
           </div>
+
+          {/* Modal de confirmation pour Charger de Supabase vers Local */}
+          {isConfirmModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div
+                onClick={() => setIsConfirmModalOpen(false)}
+                className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs"
+              />
+              <div className="relative w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden z-10">
+                <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-amber-500" />
+                    <h3 className="font-bold text-sm text-slate-900">
+                      Confirmation de chargement
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmModalOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-3">
+                  <p className="text-xs text-slate-700 leading-relaxed font-medium">
+                    Attention : vous allez charger une autre version depuis <strong>Supabase</strong> qui remplacera vos données locales actuelles.
+                  </p>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Souhaitez-vous confirmer le chargement des données de Supabase vers Local ?
+                  </p>
+                </div>
+
+                <div className="bg-slate-50 px-6 py-4 border-t border-slate-100 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmModalOpen(false)}
+                    className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsConfirmModalOpen(false);
+                      onSupabaseToLocal();
+                    }}
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-lg text-xs font-bold shadow-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Confirmer pour valider</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Aide SQL pour initialiser la table dans Supabase */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">

@@ -12,6 +12,7 @@ export interface StorageSettings {
   mode: StorageMode;
   supabaseUrl: string;
   supabasePublishableKey: string;
+  supabaseTableName?: string;
 }
 
 export interface FullAppBackupData {
@@ -26,14 +27,20 @@ export interface FullAppBackupData {
 
 export const STORAGE_SETTINGS_KEY = 'elec_storage_settings';
 export const SUPABASE_LAST_SYNC_KEY = 'elec_supabase_last_sync';
-export const SUPABASE_TABLE_NAME = 'volttrack_data';
-export const SUPABASE_ROW_ID = 'main';
+export const SUPABASE_TABLE_NAME = 'volttrack_suivi_electricite';
+export const SUPABASE_ROW_ID = 'volttrack_elec_main';
 
 export const DEFAULT_STORAGE_SETTINGS: StorageSettings = {
   mode: 'local',
   supabaseUrl: '',
   supabasePublishableKey: '',
+  supabaseTableName: SUPABASE_TABLE_NAME,
 };
+
+export function getEffectiveTableName(tableName?: string): string {
+  const cleaned = (tableName || '').trim().replace(/[^a-zA-Z0-9_]/g, '');
+  return cleaned || SUPABASE_TABLE_NAME;
+}
 
 export function getStorageSettings(): StorageSettings {
   try {
@@ -44,6 +51,7 @@ export function getStorageSettings(): StorageSettings {
         mode: parsed.mode === 'supabase' ? 'supabase' : 'local',
         supabaseUrl: parsed.supabaseUrl || '',
         supabasePublishableKey: parsed.supabasePublishableKey || '',
+        supabaseTableName: getEffectiveTableName(parsed.supabaseTableName),
       };
     }
   } catch (e) {
@@ -134,13 +142,18 @@ export function getSupabaseClient(url: string, key: string): SupabaseClient | nu
 /**
  * Teste la connexion à Supabase (vérifie l'URL, la clé publiable et l'accès à l'API REST / table).
  */
-export async function checkSupabaseConnection(url: string, key: string): Promise<{
+export async function checkSupabaseConnection(
+  url: string,
+  key: string,
+  tableName?: string
+): Promise<{
   connected: boolean;
   tableExists: boolean;
   error?: string;
 }> {
   const cleanUrl = url.trim().replace(/\/+$/, '');
   const cleanKey = key.trim();
+  const effectiveTable = getEffectiveTableName(tableName);
 
   if (!cleanUrl || !cleanKey) {
     return { connected: false, tableExists: false, error: 'URL ou clé publiable manquante.' };
@@ -157,7 +170,7 @@ export async function checkSupabaseConnection(url: string, key: string): Promise
 
   try {
     const { error } = await client
-      .from(SUPABASE_TABLE_NAME)
+      .from(effectiveTable)
       .select('id')
       .eq('id', SUPABASE_ROW_ID)
       .maybeSingle();
@@ -179,7 +192,7 @@ export async function checkSupabaseConnection(url: string, key: string): Promise
       return {
         connected: true,
         tableExists: false,
-        error: `Connecté à Supabase, mais la table "${SUPABASE_TABLE_NAME}" n'existe pas encore.`,
+        error: `Connecté à Supabase, mais la table "${effectiveTable}" n'existe pas encore.`,
       };
     }
 
@@ -228,16 +241,18 @@ export function collectLocalData(releves: Releve[], config: TarifConfig, selecto
 export async function pushLocalToSupabase(
   url: string,
   key: string,
-  payload: FullAppBackupData
+  payload: FullAppBackupData,
+  tableName?: string
 ): Promise<{ success: boolean; error?: string }> {
   const client = getSupabaseClient(url, key);
   if (!client) {
     return { success: false, error: 'URL ou clé publiable Supabase invalide.' };
   }
+  const effectiveTable = getEffectiveTableName(tableName);
 
   try {
     const { error } = await client
-      .from(SUPABASE_TABLE_NAME)
+      .from(effectiveTable)
       .upsert(
         {
           id: SUPABASE_ROW_ID,
@@ -265,16 +280,18 @@ export async function pushLocalToSupabase(
  */
 export async function pullSupabaseToLocal(
   url: string,
-  key: string
+  key: string,
+  tableName?: string
 ): Promise<{ success: boolean; data?: FullAppBackupData; error?: string }> {
   const client = getSupabaseClient(url, key);
   if (!client) {
     return { success: false, error: 'URL ou clé publiable Supabase invalide.' };
   }
+  const effectiveTable = getEffectiveTableName(tableName);
 
   try {
     const { data, error } = await client
-      .from(SUPABASE_TABLE_NAME)
+      .from(effectiveTable)
       .select('data, updated_at')
       .eq('id', SUPABASE_ROW_ID)
       .maybeSingle();
